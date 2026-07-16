@@ -8,7 +8,7 @@ foobar2000 2.x（Windows x64）向けの、R128ベース・リアルタイム音
 
 GitHub Releasesから、次のファイルをダウンロードしてください。
 
-`foo_r128_normalizer_v1.4.1.fb2k-component`
+[foo_r128_normalizer_v1.4.1.fb2k-component](https://github.com/Maximum0303/foo_r128_normalizer/releases/latest/download/foo_r128_normalizer_v1.4.1.fb2k-component)
 
 一般利用では、Visual Studioやfoobar2000 SDKは必要ありません。
 
