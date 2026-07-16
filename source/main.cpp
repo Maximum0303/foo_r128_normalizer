@@ -2,12 +2,15 @@
 
 DECLARE_COMPONENT_VERSION(
     "R128 \xE3\x83\xAA\xE3\x82\xA2\xE3\x83\xAB\xE3\x82\xBF\xE3\x82\xA4\xE3\x83\xA0\xE9\x9F\xB3\xE9\x87\x8F\xE3\x83\x8E\xE3\x83\xBC\xE3\x83\x9E\xE3\x83\xA9\xE3\x82\xA4\xE3\x82\xB6\xE3\x83\xBC",
-    "1.5.1",
+    "1.5.2",
     "foobar2000用のR128ベース・リアルタイム音量ノーマライザーです。\n"
     "\n"
     "Author: Maximum\n"
     "Copyright (c) 2026 Maximum\n"
     "License: MIT License\n"
+    "\n"
+    "v1.5.2では、診断ページを2列へ再配置し、\n"
+    "各診断項目を省略しない正式名称で表示します。\n"
     "\n"
     "v1.5.1では、項目ヘルプとライセンス・クレジット画面も\n"
     "foobar2000本体のライト／ダーク／レトロ表示へ自動追従します。\n"

@@ -103,6 +103,7 @@
 #define IDC_UNIT_GAIN_LOCK_SECONDS         1118
 #define IDC_LABEL_GAIN_LOCK_TOLERANCE      1119
 #define IDC_UNIT_GAIN_LOCK_TOLERANCE       1120
+#define IDC_BASIC_RIGHT_HEADER             1121
 
 #define IDC_ADV_HEADER                     1130
 #define IDC_LABEL_MODERN_STRENGTH          1131
@@ -110,6 +111,10 @@
 #define IDC_ADV_INFO_1                     1133
 #define IDC_ADV_INFO_2                     1134
 #define IDC_ADV_INFO_3                     1135
+#define IDC_ADV_GROUP_MODERN               1136
+#define IDC_ADV_GROUP_ADAPTIVE             1137
+#define IDC_ADV_GROUP_THREE_BAND           1138
+#define IDC_ADV_GROUP_STRENGTH              1139
 
 #define IDC_LABEL_DIAG_NORMALIZATION       1150
 #define IDC_LABEL_DIAG_MOMENTARY           1151
@@ -138,3 +143,5 @@
 #define IDC_LABEL_DIAG_MAX_COMPRESSOR      1174
 #define IDC_LABEL_DIAG_MAX_CLIPPER         1175
 #define IDC_LABEL_DIAG_MAX_LIMITER         1176
+#define IDC_DIAG_LEFT_HEADER               1177
+#define IDC_DIAG_RIGHT_HEADER              1178

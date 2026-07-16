@@ -669,6 +669,7 @@ r128_settings parse_preset(const dsp_preset& in) {
 
 constexpr int kBasicPageControls[] = {
     IDC_BASIC_HEADER,
+    IDC_BASIC_RIGHT_HEADER,
     IDC_LABEL_TARGET_LUFS,
     IDC_TARGET_LUFS,
     IDC_UNIT_TARGET_LUFS,
@@ -707,6 +708,10 @@ constexpr int kBasicPageControls[] = {
 
 constexpr int kAdvancedPageControls[] = {
     IDC_ADV_HEADER,
+    IDC_ADV_GROUP_MODERN,
+    IDC_ADV_GROUP_ADAPTIVE,
+    IDC_ADV_GROUP_THREE_BAND,
+    IDC_ADV_GROUP_STRENGTH,
     IDC_ENABLE_MODERN_BOOST,
     IDC_ENABLE_ADAPTIVE_MASTER,
     IDC_ENABLE_THREE_BAND_MASTER,
@@ -719,6 +724,8 @@ constexpr int kAdvancedPageControls[] = {
 };
 
 constexpr int kDiagnosticPageControls[] = {
+    IDC_DIAG_LEFT_HEADER,
+    IDC_DIAG_RIGHT_HEADER,
     IDC_LABEL_DIAG_NORMALIZATION,
     IDC_DIAG_NORMALIZATION_STATE,
     IDC_LABEL_DIAG_MOMENTARY,
@@ -1544,7 +1551,7 @@ std::wstring build_diagnostic_report() {
     wchar_t report[6656] = {};
     swprintf_s(
         report,
-        L"R128 音量ノーマライザー 1.5.1\r\n"
+        L"R128 音量ノーマライザー 1.5.2\r\n"
         L"再生状態: %s\r\n"
         L"補正状態: %s\r\n"
         L"補正ゲイン固定: %s\r\n"
@@ -2269,25 +2276,25 @@ constexpr glossary_entry kGlossaryEntries[] = {
         L"相当しますが、用途は聞こえる大きさの比較です。"
     },
     {
-        L"Momentary",
+        L"Momentaryラウドネス",
         L"約400ミリ秒の短い区間で測ったラウドネスです。\r\n\r\n"
         L"瞬間的な音量変化を確認できます。ドラムや歌声の一音ごとに"
         L"大きく動くため、曲全体の音量判断には使いません。"
     },
     {
-        L"Short-term",
+        L"Short-termラウドネス",
         L"直近約3秒間のラウドネスです。\r\n\r\n"
         L"Momentaryより安定し、現在聞いている部分の音量感を"
         L"確認できます。音量一致A/B比較にも使用します。"
     },
     {
-        L"Integrated",
+        L"Integratedラウドネス",
         L"測定開始から現在までをまとめた平均ラウドネスです。\r\n\r\n"
-        L"入力Int.は処理前、出力Int.は処理後を示します。"
+        L"入力Integratedラウドネスは処理前、出力Integratedラウドネスは処理後を示します。"
         L"曲全体の音量を判断する中心的な値です。"
     },
     {
-        L"LRA",
+        L"ラウドネスレンジ（LRA）",
         L"Loudness Rangeの略です。\r\n\r\n"
         L"曲の静かな部分と大きな部分の幅、つまり抑揚の大きさを"
         L"推定します。値が大きい曲ほどダイナミックです。"
@@ -2299,31 +2306,31 @@ constexpr glossary_entry kGlossaryEntries[] = {
         L"上限にすると、再生機器や変換時の余裕を確保できます。"
     },
     {
-        L"目標LUFS",
+        L"目標ラウドネス",
         L"処理後に近づけたいラウドネスです。\r\n\r\n"
         L"値を0に近づけるほど音量感は大きくなりますが、"
         L"コンプレッサーやクリッパーの処理量も増えやすくなります。"
     },
     {
-        L"最大増幅 / 最大減衰",
+        L"R128補正ゲイン最大増幅量 / 最大減衰量",
         L"R128補正ゲインが動ける範囲です。\r\n\r\n"
         L"最大増幅は小さい音源を持ち上げる上限、最大減衰は"
         L"大きい音源を下げる上限です。安全用の制限として働きます。"
     },
     {
-        L"先読み",
+        L"True Peakリミッター先読み時間",
         L"ピークが来る少し前にリミッターを動かすための時間です。\r\n\r\n"
         L"ピークを確実に抑えやすくなりますが、その分だけDSPの"
         L"遅延が増えます。既定値は5 msです。"
     },
     {
-        L"解放時間",
+        L"True Peakリミッター解放時間",
         L"リミッターが音量を抑えたあと、通常のゲインへ戻る速さです。\r\n\r\n"
         L"短すぎると揺れや歪みが出やすく、長すぎると抑えた状態が"
         L"長く残ります。"
     },
     {
-        L"曲頭安定化",
+        L"曲頭安定化解析時間",
         L"曲の冒頭を測定し、増幅判断を安定させるための待ち時間です。\r\n\r\n"
         L"この間は不用意な大幅増幅を保留します。短い曲や無音から"
         L"始まる曲では表示がしばらく「測定中・保留」になります。"
@@ -2335,7 +2342,7 @@ constexpr glossary_entry kGlossaryEntries[] = {
         L"過剰に増幅しないための安全動作です。"
     },
     {
-        L"ゲイン固定",
+        L"補正ゲイン固定",
         L"ラウドネスが安定したあと、補正ゲインを一定に保つ機能です。\r\n\r\n"
         L"曲中で音量がふらつくのを防ぎます。安全上必要な減衰や"
         L"ピーク抑制は、固定後でも追加される場合があります。"
@@ -2353,7 +2360,7 @@ constexpr glossary_entry kGlossaryEntries[] = {
         L"デジタル音割れの回数そのものではありません。"
     },
     {
-        L"リミッター",
+        L"True Peakリミッター",
         L"最終段でTrue Peak上限を超えないように音量を抑えます。\r\n\r\n"
         L"最大リミッターが3 dB以上になる場合は、目標LUFSや"
         L"モダン強度を下げることを推奨します。"
@@ -2362,7 +2369,7 @@ constexpr glossary_entry kGlossaryEntries[] = {
         L"自動セーフティ",
         L"処理が強くなりすぎたとき、追加で最大3 dBまで"
         L"全体を安全側へ下げる機能です。\r\n\r\n"
-        L"診断の「安全補正」に現在の減衰量が表示されます。"
+        L"診断の「安全補正ゲイン」に現在の減衰量が表示されます。"
     },
     {
         L"モダンブースト",
@@ -2384,7 +2391,7 @@ constexpr glossary_entry kGlossaryEntries[] = {
         L"固定EQではありませんが、処理量によって音色は変化します。"
     },
     {
-        L"クロスオーバー",
+        L"クロスオーバー周波数",
         L"3バンド・アダプティブで低域・中域・高域を分ける境界周波数です。\r\n\r\n"
         L"このコンポーネントでは約160 Hzと約4 kHzを使用します。"
     },
@@ -2402,7 +2409,7 @@ constexpr glossary_entry kGlossaryEntries[] = {
         L"音量差を含めた実際の効果を確認できます。前段の別DSPは残ります。"
     },
     {
-        L"最大TP",
+        L"最大True Peak",
         L"トラック中に測定した処理後の最大True Peakです。\r\n\r\n"
         L"設定したTP上限の近くなら正常です。+0.01 dBTPを超えた場合や"
         L"0 dBTP超過が記録された場合は要調整です。"
@@ -2414,13 +2421,13 @@ constexpr glossary_entry kGlossaryEntries[] = {
         L"リミッターが3 dB以上なら「要調整」と判定します。"
     },
     {
-        L"0 dBTP超過",
+        L"0 dBTP超過イベント",
         L"処理後のTrue Peakが0 dBTPを超えたイベント回数です。\r\n\r\n"
         L"通常は0回になることを想定しています。1回以上なら"
         L"True Peak設定と処理強度を見直してください。"
     },
     {
-        L"CPU",
+        L"CPU負荷",
         L"このDSPの推定処理負荷です。\r\n\r\n"
         L"パソコン、サンプルレート、チャンネル数で変化します。"
         L"総合評価の「安全／強め／要調整」には使用しません。"
@@ -2496,62 +2503,62 @@ struct context_help_entry {
 constexpr context_help_entry kContextHelpEntries[] = {
     {
         IDC_TARGET_LUFS,
-        L"目標LUFS",
+        L"目標ラウドネス",
         L"処理後に近づけたいラウドネスです。"
         L"0に近づけるほど大きくなりますが、"
         L"圧縮やピーク処理も強くなりやすくなります。"
     },
     {
         IDC_MAX_BOOST,
-        L"最大増幅",
+        L"R128補正ゲイン最大増幅量",
         L"小さい音源を持ち上げられる最大量です。"
         L"静かな音源や無音を過剰に増幅しないための上限です。"
     },
     {
         IDC_MAX_ATTENUATION,
-        L"最大減衰",
+        L"R128補正ゲイン最大減衰量",
         L"大きい音源を下げられる最大量です。"
         L"極端な設定値にならないための安全上限です。"
     },
     {
         IDC_TRUE_PEAK,
-        L"TP上限",
+        L"True Peak上限",
         L"処理後のTrue Peak上限です。"
         L"一般的な開始値は-1.0 dBTPです。"
     },
     {
         IDC_LOOKAHEAD_MS,
-        L"先読み",
+        L"True Peakリミッター先読み時間",
         L"ピークの少し前からリミッターを動かす時間です。"
         L"長くするとピークを抑えやすくなりますが、遅延も増えます。"
     },
     {
         IDC_LIMITER_RELEASE_MS,
-        L"解放時間",
+        L"True Peakリミッター解放時間",
         L"リミッターが通常状態へ戻る速さです。"
         L"短すぎると揺れ、長すぎると抑制が長く残ることがあります。"
     },
     {
         IDC_STARTUP_ANALYSIS_SECONDS,
-        L"曲頭安定化",
+        L"曲頭安定化解析時間",
         L"曲の冒頭を測定して増幅判断を安定させる時間です。"
         L"この間の増幅保留は正常な安全動作です。"
     },
     {
         IDC_SILENCE_GUARD_LUFS,
-        L"静音しきい値",
+        L"静音保護しきい値",
         L"この値より静かな区間では増幅を保留します。"
         L"無音や小さなノイズの過剰増幅を防ぎます。"
     },
     {
         IDC_GAIN_LOCK_SECONDS,
-        L"固定判定",
+        L"補正ゲイン固定判定時間",
         L"補正ゲインを固定するまでの安定確認時間です。"
         L"長くすると慎重に、短くすると早く固定します。"
     },
     {
         IDC_GAIN_LOCK_TOLERANCE_LU,
-        L"固定許容",
+        L"補正ゲイン固定許容幅",
         L"ゲイン固定を判断する際に許容するラウドネス変動幅です。"
         L"小さいほど厳密な安定を求めます。"
     },
@@ -2563,23 +2570,23 @@ constexpr context_help_entry kContextHelpEntries[] = {
     },
     {
         IDC_RESET_EACH_TRACK,
-        L"曲変更時に測定をリセット",
+        L"トラック変更時に測定値をリセット",
         L"次の曲へ移った際にIntegrated、LRA、最大値などを"
         L"新しい曲用にリセットします。"
     },
     {
         IDC_ENABLE_PEAK_GUARD,
-        L"True Peak＋先読み制限",
+        L"True Peak保護（先読みリミッター）を有効",
         L"先読みリミッターを使い、設定したTP上限を守ります。"
     },
     {
         IDC_ENABLE_SILENCE_GUARD,
-        L"静かな区間は増幅を保留",
+        L"静音区間では増幅を保留",
         L"無音や非常に静かな区間を大きく持ち上げない安全機能です。"
     },
     {
         IDC_ENABLE_GAIN_LOCK,
-        L"安定後に曲中ゲイン固定",
+        L"安定後に曲中の補正ゲインを固定",
         L"測定が安定した後の補正ゲインを固定し、"
         L"曲中の音量のふらつきを減らします。"
     },
@@ -2602,150 +2609,150 @@ constexpr context_help_entry kContextHelpEntries[] = {
     },
     {
         IDC_DIAG_NORMALIZATION_STATE,
-        L"補正",
+        L"R128ノーマライズ状態",
         L"通常補正、測定中・保留、静音保護・保留など、"
         L"現在のR128補正状態を表示します。"
     },
     {
         IDC_DIAG_GAIN_LOCK,
-        L"固定",
+        L"補正ゲイン固定状態",
         L"ゲイン固定の待ち時間、固定値、安全減衰、"
         L"増幅抑制などの状態を表示します。"
     },
     {
         IDC_DIAG_MOMENTARY,
-        L"Momentary",
+        L"Momentaryラウドネス",
         L"約400ミリ秒の瞬間的なラウドネスです。"
     },
     {
         IDC_DIAG_SHORT_TERM,
-        L"Short-term",
+        L"Short-termラウドネス",
         L"直近約3秒間のラウドネスです。"
         L"音量一致A/B比較の中心値にも使用します。"
     },
     {
         IDC_DIAG_INTEGRATED,
-        L"入力Integrated",
+        L"入力Integratedラウドネス",
         L"処理前の測定開始から現在までの平均ラウドネスです。"
     },
     {
         IDC_DIAG_OUTPUT_INTEGRATED,
-        L"出力Integrated",
+        L"出力Integratedラウドネス",
         L"処理後の測定開始から現在までの平均ラウドネスです。"
     },
     {
         IDC_DIAG_TARGET_DIFFERENCE,
-        L"目標差",
+        L"目標LUFSとの差",
         L"出力Integratedと目標LUFSの差です。"
         L"0 LUに近いほど目標へ近づいています。"
     },
     {
         IDC_DIAG_LRA,
-        L"LRA",
+        L"ラウドネスレンジ（LRA）",
         L"曲の静かな部分と大きな部分の幅を推定した値です。"
     },
     {
         IDC_DIAG_PROCESSING_RISK,
-        L"処理状態",
+        L"追加処理の状態",
         L"現在のモダン／1バンド・アダプティブ処理の強さや、"
         L"A/B比較状態を表示します。"
     },
     {
         IDC_DIAG_SAFETY_REDUCTION,
-        L"安全補正",
+        L"安全補正ゲイン",
         L"処理が強くなりすぎた際に追加された安全減衰量です。"
         L"最大3 dBまで動作します。"
     },
     {
         IDC_DIAG_GAIN,
-        L"総ゲイン",
+        L"適用中の総ゲイン",
         L"R128補正と安全補正を含む、現在の全体ゲインです。"
     },
     {
         IDC_DIAG_COMPRESSOR_REDUCTION,
-        L"コンプ",
+        L"コンプレッサー減衰量",
         L"現在のコンプレッサー減衰量です。"
     },
     {
         IDC_DIAG_CLIPPER_REDUCTION,
-        L"クリップ",
+        L"ソフトクリッパー減衰量",
         L"現在のソフトクリッパーによるピーク整形量です。"
     },
     {
         IDC_DIAG_LIMITER_REDUCTION,
-        L"リミッター",
+        L"True Peakリミッター減衰量",
         L"現在の最終True Peakリミッター減衰量です。"
     },
     {
         IDC_DIAG_TRUE_PEAK,
-        L"True Peak",
+        L"処理後True Peak",
         L"現在の処理後True Peak推定値です。単位はdBTPです。"
     },
     {
         IDC_DIAG_LATENCY,
-        L"遅延",
+        L"処理遅延",
         L"先読み処理などによって発生するDSP遅延です。"
     },
     {
         IDC_DIAG_PEAK_GUARD,
-        L"ピーク保護",
+        L"True Peak保護状態",
         L"True Peak保護が無効、待機、作動中のどれかを表示します。"
     },
     {
         IDC_DIAG_CHANNEL_LAYOUT,
-        L"構成",
+        L"チャンネル構成",
         L"検出したチャンネル構成と、LFEをラウドネス計算から"
         L"除外しているかを表示します。"
     },
     {
         IDC_DIAG_THREE_BAND_REDUCTION,
-        L"3バンド",
+        L"3バンド・アダプティブ減衰量",
         L"再生中は低域・中域・高域の現在の減衰量を表示します。"
         L"停止後は前回トラックで記録した各帯域の最大減衰量を表示します。"
     },
     {
         IDC_DIAG_MAX_TRUE_PEAK,
-        L"最大TP",
+        L"最大True Peak",
         L"トラック中の処理後最大True Peakです。"
         L"+0.01 dBTPを超えた場合は要調整です。"
     },
     {
         IDC_DIAG_MAX_COMPRESSOR_REDUCTION,
-        L"最大コンプ",
+        L"最大コンプレッサー減衰量",
         L"トラック中の最大コンプレッサー減衰量です。"
         L"6 dB以上は「強め」の目安です。"
     },
     {
         IDC_DIAG_MAX_CLIPPER_REDUCTION,
-        L"最大クリップ",
+        L"最大ソフトクリッパー減衰量",
         L"トラック中の最大ソフトクリッパー整形量です。"
         L"3 dB以上は「要調整」です。"
     },
     {
         IDC_DIAG_MAX_LIMITER_REDUCTION,
-        L"最大リミッター",
+        L"最大True Peakリミッター減衰量",
         L"トラック中の最大リミッター減衰量です。"
         L"3 dB以上は「要調整」です。"
     },
     {
         IDC_DIAG_SAMPLE_RATE,
-        L"レート",
+        L"サンプルレート",
         L"再生中のサンプルレートです。例：44100 Hz、48000 Hz。"
     },
     {
         IDC_DIAG_CPU_LOAD,
-        L"CPU",
+        L"CPU負荷",
         L"このDSPの推定処理負荷です。総合評価には使用しません。"
     },
     {
         IDC_DIAG_CLIP_EVENT_COUNT,
-        L"0 dBTP超過",
+        L"0 dBTP超過イベント",
         L"処理後のTrue Peakが0 dBTPを超えたイベント回数です。"
         L"通常は0回を想定しています。"
     },
     {
         IDC_DIAG_PROCESSING_EVALUATION,
-        L"総合評価",
+        L"処理総合評価",
         L"最大TP、最大クリップ、最大リミッター、"
         L"0 dBTP超過などから「安全／強め／要調整」を表示します。"
     },
@@ -2786,44 +2793,44 @@ struct label_help_link {
 };
 
 constexpr label_help_link kLabelHelpLinks[] = {
-    { L"目標LUFS：", IDC_TARGET_LUFS },
-    { L"最大増幅：", IDC_MAX_BOOST },
-    { L"最大減衰：", IDC_MAX_ATTENUATION },
-    { L"TP上限：", IDC_TRUE_PEAK },
-    { L"先読み：", IDC_LOOKAHEAD_MS },
-    { L"解放時間：", IDC_LIMITER_RELEASE_MS },
-    { L"曲頭安定化：", IDC_STARTUP_ANALYSIS_SECONDS },
-    { L"静音しきい値：", IDC_SILENCE_GUARD_LUFS },
-    { L"固定判定：", IDC_GAIN_LOCK_SECONDS },
-    { L"固定許容：", IDC_GAIN_LOCK_TOLERANCE_LU },
+    { L"目標ラウドネス：", IDC_TARGET_LUFS },
+    { L"R128補正ゲイン最大増幅量：", IDC_MAX_BOOST },
+    { L"R128補正ゲイン最大減衰量：", IDC_MAX_ATTENUATION },
+    { L"True Peak上限：", IDC_TRUE_PEAK },
+    { L"True Peakリミッター先読み時間：", IDC_LOOKAHEAD_MS },
+    { L"True Peakリミッター解放時間：", IDC_LIMITER_RELEASE_MS },
+    { L"曲頭安定化解析時間：", IDC_STARTUP_ANALYSIS_SECONDS },
+    { L"静音保護しきい値：", IDC_SILENCE_GUARD_LUFS },
+    { L"補正ゲイン固定判定時間：", IDC_GAIN_LOCK_SECONDS },
+    { L"補正ゲイン固定許容幅：", IDC_GAIN_LOCK_TOLERANCE_LU },
     { L"モダン強度／上限：", IDC_MODERN_STRENGTH },
-    { L"補正：", IDC_DIAG_NORMALIZATION_STATE },
-    { L"固定：", IDC_DIAG_GAIN_LOCK },
-    { L"Momentary：", IDC_DIAG_MOMENTARY },
-    { L"Short-term：", IDC_DIAG_SHORT_TERM },
-    { L"入力Int.：", IDC_DIAG_INTEGRATED },
-    { L"出力Int.：", IDC_DIAG_OUTPUT_INTEGRATED },
-    { L"目標差：", IDC_DIAG_TARGET_DIFFERENCE },
-    { L"LRA：", IDC_DIAG_LRA },
-    { L"処理状態：", IDC_DIAG_PROCESSING_RISK },
-    { L"安全補正：", IDC_DIAG_SAFETY_REDUCTION },
-    { L"総ゲイン：", IDC_DIAG_GAIN },
-    { L"コンプ：", IDC_DIAG_COMPRESSOR_REDUCTION },
-    { L"クリップ：", IDC_DIAG_CLIPPER_REDUCTION },
-    { L"リミッター：", IDC_DIAG_LIMITER_REDUCTION },
-    { L"True Peak：", IDC_DIAG_TRUE_PEAK },
-    { L"遅延：", IDC_DIAG_LATENCY },
-    { L"ピーク保護：", IDC_DIAG_PEAK_GUARD },
-    { L"構成：", IDC_DIAG_CHANNEL_LAYOUT },
-    { L"3バンド：", IDC_DIAG_THREE_BAND_REDUCTION },
-    { L"最大TP：", IDC_DIAG_MAX_TRUE_PEAK },
-    { L"最大コンプ：", IDC_DIAG_MAX_COMPRESSOR_REDUCTION },
-    { L"最大クリップ：", IDC_DIAG_MAX_CLIPPER_REDUCTION },
-    { L"最大リミッター：", IDC_DIAG_MAX_LIMITER_REDUCTION },
-    { L"レート：", IDC_DIAG_SAMPLE_RATE },
-    { L"CPU：", IDC_DIAG_CPU_LOAD },
-    { L"0 dBTP超過：", IDC_DIAG_CLIP_EVENT_COUNT },
-    { L"総合評価：", IDC_DIAG_PROCESSING_EVALUATION }
+    { L"R128ノーマライズ状態：", IDC_DIAG_NORMALIZATION_STATE },
+    { L"補正ゲイン固定状態：", IDC_DIAG_GAIN_LOCK },
+    { L"Momentaryラウドネス：", IDC_DIAG_MOMENTARY },
+    { L"Short-termラウドネス：", IDC_DIAG_SHORT_TERM },
+    { L"入力Integratedラウドネス：", IDC_DIAG_INTEGRATED },
+    { L"出力Integratedラウドネス：", IDC_DIAG_OUTPUT_INTEGRATED },
+    { L"目標LUFSとの差：", IDC_DIAG_TARGET_DIFFERENCE },
+    { L"ラウドネスレンジ（LRA）：", IDC_DIAG_LRA },
+    { L"適用中の総ゲイン：", IDC_DIAG_GAIN },
+    { L"追加処理の状態：", IDC_DIAG_PROCESSING_RISK },
+    { L"安全補正ゲイン：", IDC_DIAG_SAFETY_REDUCTION },
+    { L"コンプレッサー減衰量：", IDC_DIAG_COMPRESSOR_REDUCTION },
+    { L"ソフトクリッパー減衰量：", IDC_DIAG_CLIPPER_REDUCTION },
+    { L"True Peakリミッター減衰量：", IDC_DIAG_LIMITER_REDUCTION },
+    { L"処理後True Peak：", IDC_DIAG_TRUE_PEAK },
+    { L"処理遅延：", IDC_DIAG_LATENCY },
+    { L"True Peak保護状態：", IDC_DIAG_PEAK_GUARD },
+    { L"サンプルレート：", IDC_DIAG_SAMPLE_RATE },
+    { L"チャンネル構成：", IDC_DIAG_CHANNEL_LAYOUT },
+    { L"CPU負荷：", IDC_DIAG_CPU_LOAD },
+    { L"0 dBTP超過イベント：", IDC_DIAG_CLIP_EVENT_COUNT },
+    { L"処理総合評価：", IDC_DIAG_PROCESSING_EVALUATION },
+    { L"最大True Peak：", IDC_DIAG_MAX_TRUE_PEAK },
+    { L"最大コンプレッサー減衰量：", IDC_DIAG_MAX_COMPRESSOR_REDUCTION },
+    { L"最大ソフトクリッパー減衰量：", IDC_DIAG_MAX_CLIPPER_REDUCTION },
+    { L"最大True Peakリミッター減衰量：", IDC_DIAG_MAX_LIMITER_REDUCTION },
+    { L"3バンド・アダプティブ減衰量：", IDC_DIAG_THREE_BAND_REDUCTION }
 };
 
 const context_help_entry* find_context_help(int control_id) {
@@ -2941,7 +2948,7 @@ void show_text_info_dialog(
 }
 
 constexpr wchar_t kLicenseCreditsText[] =
-    L"R128 リアルタイム音量ノーマライザー 1.5.1\r\n"
+    L"R128 リアルタイム音量ノーマライザー 1.5.2\r\n"
     L"\r\n"
     L"作者：Maximum\r\n"
     L"Copyright (c) 2026 Maximum\r\n"

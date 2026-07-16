@@ -3,7 +3,7 @@
 この文書は開発者向けです。
 
 一般利用者は、GitHub Releasesで配布される
-`foo_r128_normalizer_v1.5.1.fb2k-component`を使用してください。
+`foo_r128_normalizer_v1.5.2.fb2k-component`を使用してください。
 
 ## 基準環境
 
@@ -15,18 +15,18 @@
 ## 自動ビルド・梱包
 
 1. このソース一式を展開します。
-2. `v1.5.1へ更新・ビルド・梱包.cmd`を実行します。
+2. `v1.5.2へ更新・ビルド・梱包.cmd`を実行します。
 3. Release／x64でビルドされます。
 4. DLLの版数、x64形式、更新時刻、SHA256が検査されます。
 5. 成功すると次の配布ファイルが作成されます。
 
-   `foo_r128_normalizer_v1.5.1.fb2k-component`
+   `foo_r128_normalizer_v1.5.2.fb2k-component`
 
 ## GitHub Releaseへアップロードするファイル
 
 必須:
 
-- `foo_r128_normalizer_v1.5.1.fb2k-component`
+- `foo_r128_normalizer_v1.5.2.fb2k-component`
 - `SHA256SUMS.txt`
 
 任意:
