@@ -4,7 +4,7 @@
 #include <commctrl.h>
 #include "resource.h"
 
-IDD_R128_CONFIG DIALOGEX 0, 0, 520, 306
+IDD_R128_CONFIG DIALOGEX 0, 0, 520, 327
 STYLE DS_SHELLFONT | DS_MODALFRAME | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU
 EXSTYLE WS_EX_CONTEXTHELP | WS_EX_CONTROLPARENT
 CAPTION "R128 音量ノーマライザー"
@@ -121,7 +121,7 @@ BEGIN
 
     LTEXT           "モダン：コンプレッサー＋ソフトクリッパー＋リミッター",
                     IDC_ADV_INFO_1, 20, 150, 470, 12
-    LTEXT           "アダプティブ：曲の音量・LRAに応じて強度を自動調整",
+    LTEXT           "1バンド・アダプティブ：曲の音量・LRAに応じて強度を自動調整",
                     IDC_ADV_INFO_2, 20, 166, 470, 12
     LTEXT           "追加処理は音色・ダイナミクスに影響します。",
                     IDC_ADV_INFO_3, 20, 182, 470, 12
@@ -261,67 +261,80 @@ BEGIN
     LTEXT           "0.00 dB", IDC_DIAG_MAX_LIMITER_REDUCTION,
                     84, 170, 100, 12, SS_LEFTNOWORDWRAP | SS_NOPREFIX
 
-    GROUPBOX        "プリセット（標準4種／追加処理3種）",
-                    -1, 8, 201, 504, 38
+    GROUPBOX        "プリセット（上段：標準4種／下段：追加処理3種）",
+                    -1, 8, 201, 504, 59
     PUSHBUTTON      "自然 -18", IDC_PROFILE_STANDARD,
-                    14, 216, 68, 17
+                    14, 214, 116, 17
     PUSHBUTTON      "パワー -14", IDC_PROFILE_STREAMING,
-                    84, 216, 68, 17
+                    136, 214, 116, 17
     PUSHBUTTON      "リラックス -23", IDC_PROFILE_BROADCAST,
-                    154, 216, 72, 17
+                    258, 214, 116, 17
     PUSHBUTTON      "ナイト -22", IDC_PROFILE_NIGHT,
-                    228, 216, 68, 17
+                    380, 214, 126, 17
     PUSHBUTTON      "モダン -9", IDC_PROFILE_MODERN,
-                    298, 216, 66, 17
-    PUSHBUTTON      "自動1帯 -10", IDC_PROFILE_ADAPTIVE,
-                    366, 216, 72, 17
-    PUSHBUTTON      "自動3帯 -10", IDC_PROFILE_THREE_BAND,
-                    440, 216, 72, 17
+                    14, 234, 156, 17
+    PUSHBUTTON      "1バンド・アダプティブ -10", IDC_PROFILE_ADAPTIVE,
+                    176, 234, 156, 17
+    PUSHBUTTON      "3バンド・アダプティブ -10", IDC_PROFILE_THREE_BAND,
+                    338, 234, 168, 17
 
     GROUPBOX        "選択中のプリセット／比較",
-                    -1, 8, 242, 504, 31
+                    -1, 8, 263, 504, 31
     LTEXT           "現在: 自然 -18",
                     IDC_PROFILE_DESCRIPTION,
-                    14, 254, 200, 12, SS_LEFTNOWORDWRAP | SS_NOPREFIX
+                    14, 275, 200, 12, SS_LEFTNOWORDWRAP | SS_NOPREFIX
     CONTROL         "音量一致", IDC_COMPARE_LOUDNESS_MATCH, "Button",
-                    BS_AUTOCHECKBOX | WS_TABSTOP, 218, 252, 64, 13
+                    BS_AUTOCHECKBOX | WS_TABSTOP, 218, 273, 64, 13
     CONTROL         "比較（押している間）", IDC_ORIGINAL_COMPARE,
                     "Button", BS_PUSHBUTTON | BS_NOTIFY | WS_TABSTOP,
-                    286, 250, 140, 17
+                    286, 271, 140, 17
     PUSHBUTTON      "ライセンス", IDC_SHOW_LICENSE,
-                    432, 250, 74, 17
+                    432, 271, 74, 17
 
     PUSHBUTTON      "測定リセット", IDC_RESET_MEASUREMENT,
-                    8, 282, 72, 15
+                    8, 303, 72, 15
     PUSHBUTTON      "診断コピー", IDC_COPY_DIAGNOSTICS,
-                    84, 282, 68, 15
+                    84, 303, 68, 15
     LTEXT           "変更後は［適用］または［OK］",
                     IDC_APPLY_STATUS,
-                    158, 284, 130, 12, SS_LEFTNOWORDWRAP | SS_NOPREFIX
+                    158, 305, 130, 12, SS_LEFTNOWORDWRAP | SS_NOPREFIX
     PUSHBUTTON      "用語集", IDC_SHOW_DIAGNOSTIC_HELP,
-                    292, 282, 58, 15
+                    292, 303, 58, 15
     PUSHBUTTON      "初期設定", IDC_DEFAULTS,
-                    354, 282, 44, 15
+                    354, 303, 44, 15
     PUSHBUTTON      "適用", IDC_APPLY_SETTINGS,
-                    402, 282, 42, 15
+                    402, 303, 42, 15
     DEFPUSHBUTTON   "OK", IDOK,
-                    448, 282, 30, 15
+                    448, 303, 30, 15
     PUSHBUTTON      "取消", IDCANCEL,
-                    482, 282, 30, 15
+                    482, 303, 30, 15
 END
 
-IDD_R128_GLOSSARY DIALOGEX 0, 0, 480, 276
+IDD_R128_GLOSSARY DIALOGEX 0, 0, 400, 276
 STYLE DS_SHELLFONT | DS_MODALFRAME | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU
 EXSTYLE WS_EX_CONTROLPARENT
 CAPTION "R128 音量ノーマライザー 用語集"
 FONT 9, "Yu Gothic UI"
 BEGIN
     LTEXT           "左の用語を選ぶと、このコンポーネント内での意味と読み方を表示します。",
-                    -1, 10, 9, 460, 14
-    LISTBOX         IDC_GLOSSARY_LIST, 10, 28, 130, 218,
+                    -1, 10, 9, 380, 14
+    LISTBOX         IDC_GLOSSARY_LIST, 10, 28, 120, 218,
                     LBS_NOTIFY | WS_VSCROLL | WS_TABSTOP | WS_BORDER
-    EDITTEXT        IDC_GLOSSARY_DESCRIPTION, 148, 28, 322, 218,
+    EDITTEXT        IDC_GLOSSARY_DESCRIPTION, 138, 28, 252, 218,
                     ES_MULTILINE | ES_READONLY | ES_AUTOVSCROLL |
                     WS_VSCROLL | WS_TABSTOP | WS_BORDER
-    DEFPUSHBUTTON   "閉じる", IDOK, 404, 254, 66, 16
+    DEFPUSHBUTTON   "閉じる", IDOK, 324, 254, 66, 16
 END
+
+IDD_R128_TEXT_INFO DIALOGEX 0, 0, 250, 210
+STYLE DS_SHELLFONT | DS_MODALFRAME | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU
+EXSTYLE WS_EX_CONTROLPARENT
+CAPTION "R128 音量ノーマライザー"
+FONT 9, "Yu Gothic UI"
+BEGIN
+    EDITTEXT        IDC_TEXT_INFO_BODY, 10, 10, 230, 166,
+                    ES_MULTILINE | ES_READONLY | ES_AUTOVSCROLL |
+                    WS_VSCROLL | WS_TABSTOP | WS_BORDER
+    DEFPUSHBUTTON   "閉じる", IDOK, 174, 184, 66, 16
+END
+

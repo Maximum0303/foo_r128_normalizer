@@ -2,6 +2,7 @@
 
 #define IDD_R128_CONFIG            101
 #define IDD_R128_GLOSSARY          102
+#define IDD_R128_TEXT_INFO         103
 
 #define IDC_TARGET_LUFS            1001
 #define IDC_MAX_BOOST              1002
@@ -79,6 +80,7 @@
 #define IDC_GLOSSARY_LIST             1064
 #define IDC_GLOSSARY_DESCRIPTION      1065
 #define IDC_CONFIG_TABS                    1066
+#define IDC_TEXT_INFO_BODY                 1067
 
 #define IDC_BASIC_HEADER                   1100
 #define IDC_LABEL_TARGET_LUFS              1101

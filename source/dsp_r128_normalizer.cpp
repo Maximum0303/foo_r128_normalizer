@@ -374,9 +374,9 @@ const wchar_t* recognized_profile_name(
     case recognized_profile::modern:
         return L"モダン -9";
     case recognized_profile::adaptive:
-        return L"自動1帯 -10";
+        return L"1バンド・アダプティブ -10";
     case recognized_profile::three_band:
-        return L"自動3帯 -10";
+        return L"3バンド・アダプティブ -10";
     default:
         return L"カスタム設定";
     }
@@ -1544,15 +1544,15 @@ std::wstring build_diagnostic_report() {
     wchar_t report[6656] = {};
     swprintf_s(
         report,
-        L"R128 音量ノーマライザー 1.5.0\r\n"
+        L"R128 音量ノーマライザー 1.5.1\r\n"
         L"再生状態: %s\r\n"
         L"補正状態: %s\r\n"
         L"補正ゲイン固定: %s\r\n"
         L"モダンブースト: %s\r\n"
         L"A/B比較: %s\r\n"
         L"A/B一致ゲイン: %+.2f dB（15msフェード）\r\n"
-        L"アダプティブ・マスター: %s\r\n"
-        L"3バンド・マスター: %s\r\n"
+        L"1バンド・アダプティブ: %s\r\n"
+        L"3バンド・アダプティブ: %s\r\n"
         L"実効モダン強度: %.1f %%\r\n"
         L"3バンド減衰（現在・低／中／高）: %.2f / %.2f / %.2f dB\r\n"
         L"3バンド最大減衰（低／中／高）: %.2f / %.2f / %.2f dB\r\n"
@@ -1592,7 +1592,7 @@ std::wstring build_diagnostic_report() {
         L"最大コンプレッサー減衰: %.2f dB\r\n"
         L"最大クリッパー減衰: %.2f dB\r\n"
         L"最大リミッター減衰: %.2f dB\r\n"
-        L"3バンド使用: %s\r\n"
+        L"3バンド・アダプティブ使用: %s\r\n"
         L"3バンド最大減衰（低／中／高）: %.2f / %.2f / %.2f dB\r\n"
         L"0 dBTP超過イベント: %llu 回\r\n"
         L"異常値保護作動: %llu サンプル\r\n"
@@ -2371,13 +2371,13 @@ constexpr glossary_entry kGlossaryEntries[] = {
         L"通常のノーマライズより音色やダイナミクスが変化します。"
     },
     {
-        L"アダプティブ・マスター",
+        L"1バンド・アダプティブ",
         L"入力ラウドネス、LRA、処理負荷を見ながら、モダン処理の"
         L"強度を自動調整するモードです。\r\n\r\n"
         L"設定したモダン強度は、自動調整の上限として働きます。"
     },
     {
-        L"3バンド処理",
+        L"3バンド・アダプティブ",
         L"音を低域・中域・高域に分け、それぞれを別の"
         L"コンプレッサーで制御します。\r\n\r\n"
         L"約160 Hzと約4 kHzがクロスオーバーの目安です。"
@@ -2385,7 +2385,7 @@ constexpr glossary_entry kGlossaryEntries[] = {
     },
     {
         L"クロスオーバー",
-        L"3バンド処理で低域・中域・高域を分ける境界周波数です。\r\n\r\n"
+        L"3バンド・アダプティブで低域・中域・高域を分ける境界周波数です。\r\n\r\n"
         L"このコンポーネントでは約160 Hzと約4 kHzを使用します。"
     },
     {
@@ -2467,12 +2467,12 @@ constexpr tooltip_entry kPresetTooltips[] = {
     },
     {
         IDC_PROFILE_ADAPTIVE,
-        L"アダプティブ -10：曲のLRAと入力音量を解析し、"
+        L"1バンド・アダプティブ -10：曲のLRAと入力音量を解析し、"
         L"モダン処理の強度を自動調整します。"
     },
     {
         IDC_PROFILE_THREE_BAND,
-        L"3バンド自動 -10：低・中・高域を個別に制御し、"
+        L"3バンド・アダプティブ -10：低・中・高域を個別に制御し、"
         L"低音の潰れと高域のざらつきを抑えます。"
     },
     {
@@ -2559,7 +2559,7 @@ constexpr context_help_entry kContextHelpEntries[] = {
         IDC_MODERN_STRENGTH,
         L"モダン強度／上限",
         L"コンプレッサーとクリッパーの処理強度です。"
-        L"アダプティブモードでは自動強度の上限になります。"
+        L"1バンド・アダプティブでは自動強度の上限になります。"
     },
     {
         IDC_RESET_EACH_TRACK,
@@ -2591,12 +2591,12 @@ constexpr context_help_entry kContextHelpEntries[] = {
     },
     {
         IDC_ENABLE_ADAPTIVE_MASTER,
-        L"アダプティブ",
+        L"1バンド・アダプティブ",
         L"曲のLRAや入力音量に応じ、モダン処理の強度を自動調整します。"
     },
     {
         IDC_ENABLE_THREE_BAND_MASTER,
-        L"3バンド・マスター",
+        L"3バンド・アダプティブ",
         L"低域・中域・高域を分けて個別に制御します。"
         L"固定EQではなく、帯域別の動的処理です。"
     },
@@ -2647,7 +2647,7 @@ constexpr context_help_entry kContextHelpEntries[] = {
     {
         IDC_DIAG_PROCESSING_RISK,
         L"処理状態",
-        L"現在のモダン／アダプティブ処理の強さや、"
+        L"現在のモダン／1バンド・アダプティブ処理の強さや、"
         L"A/B比較状態を表示します。"
     },
     {
@@ -2853,6 +2853,110 @@ int help_control_id_from_label(HWND item) {
     return 0;
 }
 
+struct text_info_dialog_data {
+    const wchar_t* title = nullptr;
+    const wchar_t* text = nullptr;
+};
+
+INT_PTR CALLBACK text_info_dialog_proc(
+    HWND wnd,
+    UINT message,
+    WPARAM wp,
+    LPARAM lp
+) {
+    auto* dark_mode = reinterpret_cast<fb2k::CCoreDarkModeHooks*>(
+        GetWindowLongPtrW(wnd, GWLP_USERDATA)
+    );
+
+    switch (message) {
+    case WM_INITDIALOG: {
+        const auto* data =
+            reinterpret_cast<const text_info_dialog_data*>(lp);
+
+        dark_mode = new fb2k::CCoreDarkModeHooks();
+        SetWindowLongPtrW(
+            wnd,
+            GWLP_USERDATA,
+            reinterpret_cast<LONG_PTR>(dark_mode)
+        );
+        dark_mode->AddDialogWithControls(wnd);
+
+        if (data != nullptr) {
+            if (data->title != nullptr) {
+                SetWindowTextW(wnd, data->title);
+            }
+            if (data->text != nullptr) {
+                SetDlgItemTextW(
+                    wnd,
+                    IDC_TEXT_INFO_BODY,
+                    data->text
+                );
+            }
+        }
+
+        SendDlgItemMessageW(
+            wnd,
+            IDC_TEXT_INFO_BODY,
+            EM_SETSEL,
+            0,
+            0
+        );
+        SetFocus(GetDlgItem(wnd, IDOK));
+        return FALSE;
+    }
+
+    case WM_COMMAND:
+        if (LOWORD(wp) == IDOK || LOWORD(wp) == IDCANCEL) {
+            EndDialog(wnd, LOWORD(wp));
+            return TRUE;
+        }
+        break;
+
+    case WM_NCDESTROY:
+        SetWindowLongPtrW(wnd, GWLP_USERDATA, 0);
+        delete dark_mode;
+        return FALSE;
+    }
+
+    return FALSE;
+}
+
+void show_text_info_dialog(
+    HWND owner,
+    const wchar_t* title,
+    const wchar_t* text
+) {
+    const text_info_dialog_data data = {
+        title,
+        text
+    };
+
+    DialogBoxParamW(
+        core_api::get_my_instance(),
+        MAKEINTRESOURCEW(IDD_R128_TEXT_INFO),
+        owner,
+        text_info_dialog_proc,
+        reinterpret_cast<LPARAM>(&data)
+    );
+}
+
+constexpr wchar_t kLicenseCreditsText[] =
+    L"R128 リアルタイム音量ノーマライザー 1.5.1\r\n"
+    L"\r\n"
+    L"作者：Maximum\r\n"
+    L"Copyright (c) 2026 Maximum\r\n"
+    L"ライセンス：MIT License\r\n"
+    L"\r\n"
+    L"先行作品への謝辞：\r\n"
+    L"EBU R128 Normalizer by mudlord\r\n"
+    L"本実装は独立して作成された非公式コンポーネントです。\r\n"
+    L"\r\n"
+    L"foobar2000 SDKを使用してビルドしています。\r\n"
+    L"mudlord氏およびfoobar2000との提携・承認関係はありません。\r\n"
+    L"\r\n"
+    L"全文はパッケージ内のlicense.txtと\r\n"
+    L"THIRD-PARTY-NOTICES.txtをご覧ください。";
+
 void show_context_help(HWND wnd, HWND item) {
     int control_id = item != nullptr ? GetDlgCtrlID(item) : 0;
 
@@ -2872,22 +2976,20 @@ void show_context_help(HWND wnd, HWND item) {
     }
 
     if (entry != nullptr) {
-        MessageBoxW(
+        show_text_info_dialog(
             wnd,
-            entry->description,
             entry->title,
-            MB_OK | MB_ICONINFORMATION
+            entry->description
         );
         return;
     }
 
-    MessageBoxW(
+    show_text_info_dialog(
         wnd,
+        L"項目ヘルプ",
         L"説明を確認したい設定欄、診断値、チェック項目、"
         L"またはプリセットをクリックしてください。\r\n\r\n"
-        L"詳しい用語一覧は画面下部の「用語集」から開けます。",
-        L"項目ヘルプ",
-        MB_OK | MB_ICONINFORMATION
+        L"詳しい用語一覧は画面下部の「用語集」から開けます。"
     );
 }
 
@@ -3627,25 +3729,10 @@ INT_PTR CALLBACK config_dialog_proc(HWND wnd, UINT message, WPARAM wp, LPARAM lp
             return TRUE;
 
         case IDC_SHOW_LICENSE:
-            MessageBoxW(
+            show_text_info_dialog(
                 wnd,
-                L"R128 リアルタイム音量ノーマライザー 1.5.0\n"
-                L"\n"
-                L"作者：Maximum\n"
-                L"Copyright (c) 2026 Maximum\n"
-                L"ライセンス：MIT License\n"
-                L"\n"
-                L"先行作品への謝辞：\n"
-                L"EBU R128 Normalizer by mudlord\n"
-                L"本実装は独立して作成された非公式コンポーネントです。\n"
-                L"\n"
-                L"foobar2000 SDKを使用してビルドしています。\n"
-                L"mudlord氏およびfoobar2000との提携・承認関係はありません。\n"
-                L"\n"
-                L"全文はパッケージ内のlicense.txtと\n"
-                L"THIRD-PARTY-NOTICES.txtをご覧ください。",
                 L"ライセンスとクレジット",
-                MB_OK | MB_ICONINFORMATION
+                kLicenseCreditsText
             );
             return TRUE;
 

@@ -1,1 +1,1 @@
-afd669f41b86abc5bccccd9c5c74dda82545332a0866453922b1cffb1e6ce6ea  foo_r128_normalizer_v1.5.0.fb2k-component
+72e434a34add076e805c050b604894f4a4b9e966d5d915f6186dc111de386d56  foo_r128_normalizer_v1.5.1.fb2k-component

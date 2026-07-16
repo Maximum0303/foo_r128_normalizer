@@ -1,8 +1,8 @@
-R128 リアルタイム音量ノーマライザー v1.5.0
+R128 リアルタイム音量ノーマライザー v1.5.1
 かんたん導入ガイド
 
 1. GitHub Releasesから次をダウンロードします。
-   foo_r128_normalizer_v1.5.0.fb2k-component
+   foo_r128_normalizer_v1.5.1.fb2k-component
 
 2. ファイルを開き、foobar2000へインストールします。
 
