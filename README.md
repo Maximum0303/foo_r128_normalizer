@@ -8,20 +8,34 @@ foobar2000 2.x（Windows x64）向けの、R128ベース・リアルタイム音
 
 GitHub Releasesから、次のファイルをダウンロードしてください。
 
-[foo_r128_normalizer_v1.4.1.fb2k-component](https://github.com/Maximum0303/foo_r128_normalizer/releases/latest/download/foo_r128_normalizer_v1.4.1.fb2k-component)
+`foo_r128_normalizer_v1.5.0.fb2k-component`
 
 一般利用では、Visual Studioやfoobar2000 SDKは必要ありません。
 
 ## インストール
 
-1. `foo_r128_normalizer_v1.4.1.fb2k-component`をダウンロードします。
+1. `foo_r128_normalizer_v1.5.0.fb2k-component`をダウンロードします。
 2. ファイルを開き、foobar2000の確認画面に従ってインストールします。
 3. foobar2000を再起動します。
-4. DSP設定で「R128 音量ノーマライザー」を使用中のDSPへ追加します。
+4. DSP Managerで「R128 音量ノーマライザー」を使用中のDSPへ追加します。
 5. 最初は「自然 -18」を選ぶことをおすすめします。
 
-foobar2000から手動で追加する場合は、Preferences → Components → Installから
-`.fb2k-component`ファイルを選択してください。
+## 設定画面を直接開く
+
+DSPへ追加した後は、DSP Managerを開かずに次のメニューから設定できます。
+
+`Playback → R128 音量ノーマライザーの設定...`
+
+このメニューコマンドは、foobar2000のキーボードショートカット設定にも割り当てられます。
+
+直接開いた設定画面はfoobar2000より常に手前に表示されます。
+設定画面を開いたまま、背後のfoobar2000を操作できます。
+Windows全体の「常に最前面」ではないため、ほかのアプリは通常どおり前へ出せます。
+
+安全のため、次の場合は設定を変更せず案内を表示します。
+
+- 現在のDSPチェーンに本DSPが登録されていない
+- 現在のDSPチェーンに本DSPが複数登録されている
 
 ## プリセット
 
@@ -43,7 +57,11 @@ foobar2000から手動で追加する場合は、Preferences → Components → 
 
 ## 主な機能
 
+- foobar2000本体のライト／ダーク表示へ自動追従
+- 設定画面、各コントロール、タブ、ツールチップ、用語集のダークモード対応
 - R128ベースのリアルタイム音量補正
+- Playbackメニューから設定画面を直接表示
+- キーボードショートカットから設定画面を起動可能
 - Momentary／Short-term／Integrated／LRA表示
 - True Peak推定と先読みリミッター
 - 曲頭安定化、静音保護、ゲイン固定
@@ -53,7 +71,7 @@ foobar2000から手動で追加する場合は、Preferences → Components → 
 - 診断コピー、用語集、項目別ヘルプ
 - 異常な音声数値に対する安全保護
 - 基本設定／追加処理／診断の3タブ画面
-- 設定画面を開き直した後も現在のプリセット名を表示
+- 再起動後も現在のプリセット名を表示
 - 手動調整した設定は「カスタム設定」と表示
 
 ## 確認済み表示環境
@@ -72,6 +90,8 @@ foobar2000から手動で追加する場合は、Preferences → Components → 
 
 ## 既知の制限
 
+- 直接設定メニューは現在の再生用DSPチェーンを対象にします。
+- 同じDSPを複数登録している場合は、誤変更防止のため直接設定を開きません。
 - 3バンド処理は、軽量・低遅延を優先した簡易構成です。
 - 素材別に調整された業務用マスタリングの代替ではありません。
 - True Peakは4倍オーバーサンプリングによる近似です。

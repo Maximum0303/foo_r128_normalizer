@@ -1,0 +1,26 @@
+﻿作成成功
+元DLL: C:\foobar2000-dev\SDK-2025-03-07\foobar2000\foo_r128_normalizer\x64\Release\foo_r128_normalizer.dll
+DLLバージョン検証: 1.5.0
+DLL形式: x64 (PE Machine 0x8664)
+DLLサイズ: 174080 bytes
+DLL SHA256: 8F30FD5A8F4EDEBE9EDCF685AF003E491E9E79D7252AAC4C159F6F32400590F5
+パッケージ SHA256: AFD669F41B86ABC5BCCCCD9C5C74DDA82545332A0866453922B1CFFB1E6CE6EA
+
+必須アーカイブ内容:
+  foo_r128_normalizer.dll
+  license.txt
+  THIRD-PARTY-NOTICES.txt
+  README.txt
+  GLOSSARY.txt
+  CHANGELOG.txt
+  QUICK_START.txt
+
+SDKから同梱したライセンス・著作権通知:
+  C:\foobar2000-dev\SDK-2025-03-07\pfc\pfc-license.txt
+  C:\foobar2000-dev\SDK-2025-03-07\libPPUI\libPPUI-license.txt
+
+作成場所:
+C:\Users\NEC\OneDrive\デスクトップ\foo_r128_normalizer_v1.5.0_dark_mode\foo_r128_normalizer_v1.5.0.fb2k-component
+C:\Users\NEC\OneDrive\デスクトップ\foo_r128_normalizer_v1.5.0_dark_mode\SHA256SUMS.txt
+C:\Users\NEC\OneDrive\デスクトップ\foo_r128_normalizer_v1.5.0.fb2k-component
+C:\Users\NEC\OneDrive\デスクトップ\SHA256SUMS.txt

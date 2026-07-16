@@ -1544,7 +1544,7 @@ std::wstring build_diagnostic_report() {
     wchar_t report[6656] = {};
     swprintf_s(
         report,
-        L"R128 音量ノーマライザー 1.4.1\r\n"
+        L"R128 音量ノーマライザー 1.5.0\r\n"
         L"再生状態: %s\r\n"
         L"補正状態: %s\r\n"
         L"補正ゲイン固定: %s\r\n"
@@ -3025,8 +3025,20 @@ INT_PTR CALLBACK glossary_dialog_proc(
     WPARAM wp,
     LPARAM
 ) {
+    auto* dark_mode = reinterpret_cast<fb2k::CCoreDarkModeHooks*>(
+        GetWindowLongPtrW(wnd, GWLP_USERDATA)
+    );
+
     switch (message) {
     case WM_INITDIALOG:
+        dark_mode = new fb2k::CCoreDarkModeHooks();
+        SetWindowLongPtrW(
+            wnd,
+            GWLP_USERDATA,
+            reinterpret_cast<LONG_PTR>(dark_mode)
+        );
+        dark_mode->AddDialogWithControls(wnd);
+
         for (const auto& entry : kGlossaryEntries) {
             SendDlgItemMessageW(
                 wnd,
@@ -3059,6 +3071,11 @@ INT_PTR CALLBACK glossary_dialog_proc(
             return TRUE;
         }
         break;
+
+    case WM_NCDESTROY:
+        SetWindowLongPtrW(wnd, GWLP_USERDATA, 0);
+        delete dark_mode;
+        return FALSE;
     }
 
     return FALSE;
@@ -3068,7 +3085,28 @@ struct dialog_context {
     r128_settings value;
     dsp_preset_edit_callback* callback = nullptr;
     HWND tooltip = nullptr;
+    fb2k::CCoreDarkModeHooks dark_mode;
+
+    // Direct main-menu launch only.
+    // Modal DSP Manager dialogs leave these at their defaults.
+    bool modeless = false;
+    HWND* tracked_window = nullptr;
+    void* cleanup_state = nullptr;
+    void (*cleanup)(dialog_context*) = nullptr;
 };
+
+void close_config_dialog(
+    HWND wnd,
+    INT_PTR result,
+    dialog_context* context
+) {
+    if (context != nullptr && context->modeless) {
+        DestroyWindow(wnd);
+    }
+    else {
+        EndDialog(wnd, result);
+    }
+}
 
 bool read_settings_from_dialog(
     HWND wnd,
@@ -3227,12 +3265,35 @@ INT_PTR CALLBACK config_dialog_proc(HWND wnd, UINT message, WPARAM wp, LPARAM lp
             GWLP_USERDATA,
             reinterpret_cast<LONG_PTR>(context)
         );
+
+        if (context != nullptr && context->modeless) {
+            modeless_dialog_manager::g_add(wnd);
+
+            if (context->tracked_window != nullptr) {
+                *context->tracked_window = wnd;
+            }
+        }
+
+        if (context != nullptr) {
+            context->dark_mode.AddDialogWithControls(wnd);
+        }
+
         g_original_compare_request.store(0, std::memory_order_relaxed);
         setup_config_tabs(wnd);
         fit_dialog_to_monitor_work_area(wnd);
 
         if (context != nullptr) {
             context->tooltip = create_help_tooltips(wnd);
+
+            if (context->tooltip != nullptr) {
+                SetWindowTheme(
+                    context->tooltip,
+                    context->dark_mode
+                        ? L"DarkMode_Explorer"
+                        : nullptr,
+                    nullptr
+                );
+            }
         }
         CheckDlgButton(
             wnd,
@@ -3324,6 +3385,10 @@ INT_PTR CALLBACK config_dialog_proc(HWND wnd, UINT message, WPARAM wp, LPARAM lp
         }
         break;
 
+    case WM_CLOSE:
+        close_config_dialog(wnd, IDCANCEL, context);
+        return TRUE;
+
     case WM_DESTROY:
         KillTimer(wnd, kDiagnosticsTimerId);
         g_original_compare_request.store(0, std::memory_order_relaxed);
@@ -3333,7 +3398,28 @@ INT_PTR CALLBACK config_dialog_proc(HWND wnd, UINT message, WPARAM wp, LPARAM lp
             context->tooltip = nullptr;
         }
 
+        if (context != nullptr && context->modeless) {
+            modeless_dialog_manager::g_remove(wnd);
+        }
+
         return TRUE;
+
+    case WM_NCDESTROY:
+        if (context != nullptr && context->modeless) {
+            SetWindowLongPtrW(wnd, GWLP_USERDATA, 0);
+
+            if (context->tracked_window != nullptr) {
+                *context->tracked_window = nullptr;
+            }
+
+            const auto cleanup = context->cleanup;
+
+            if (cleanup != nullptr) {
+                cleanup(context);
+            }
+        }
+
+        return FALSE;
 
     case WM_COMMAND:
         if (LOWORD(wp) == IDC_ORIGINAL_COMPARE) {
@@ -3543,7 +3629,7 @@ INT_PTR CALLBACK config_dialog_proc(HWND wnd, UINT message, WPARAM wp, LPARAM lp
         case IDC_SHOW_LICENSE:
             MessageBoxW(
                 wnd,
-                L"R128 リアルタイム音量ノーマライザー 1.4.1\n"
+                L"R128 リアルタイム音量ノーマライザー 1.5.0\n"
                 L"\n"
                 L"作者：Maximum\n"
                 L"Copyright (c) 2026 Maximum\n"
@@ -3569,12 +3655,12 @@ INT_PTR CALLBACK config_dialog_proc(HWND wnd, UINT message, WPARAM wp, LPARAM lp
 
         case IDOK:
             if (apply_dialog_settings(wnd, context)) {
-                EndDialog(wnd, IDOK);
+                close_config_dialog(wnd, IDOK, context);
             }
             return TRUE;
 
         case IDCANCEL:
-            EndDialog(wnd, IDCANCEL);
+            close_config_dialog(wnd, IDCANCEL, context);
             return TRUE;
         }
         break;
@@ -7056,3 +7142,268 @@ private:
 };
 
 static dsp_factory_t<dsp_r128_normalizer> g_dsp_r128_normalizer_factory;
+
+namespace {
+
+// Main-menu command:
+// Playback -> R128 音量ノーマライザーの設定...
+static const GUID guid_mainmenu_open_r128_settings =
+{ 0xd824be70, 0x4953, 0x464b, { 0xbc, 0x67, 0xce, 0x36, 0x7d, 0x79, 0x03, 0x83 } };
+
+class direct_r128_preset_callback final
+    : public dsp_preset_edit_callback {
+public:
+    void set_dialog(HWND dialog) {
+        m_dialog = dialog;
+    }
+
+    void on_preset_changed(
+        const dsp_preset& new_preset
+    ) override {
+        static_api_ptr_t<dsp_config_manager> manager;
+        dsp_chain_config_impl chain;
+        manager->get_core_settings(chain);
+
+        t_size match_count = 0;
+        t_size match_index = 0;
+
+        for (t_size index = 0;
+             index < chain.get_count();
+             ++index) {
+            if (chain.get_item(index).get_owner() ==
+                guid_r128_normalizer) {
+                match_index = index;
+                ++match_count;
+            }
+        }
+
+        if (match_count != 1) {
+            MessageBoxW(
+                m_dialog,
+                L"設定画面を開いている間にDSPチェーンが"
+                L"変更されたため、設定を適用できませんでした。\n\n"
+                L"DSPの登録状態を確認して、もう一度お試しください。",
+                L"R128 音量ノーマライザー",
+                MB_OK | MB_ICONWARNING
+            );
+            return;
+        }
+
+        chain.replace_item(new_preset, match_index);
+        manager->set_core_settings(chain);
+    }
+
+private:
+    HWND m_dialog = nullptr;
+};
+
+HWND g_direct_r128_settings_window = nullptr;
+
+void cleanup_direct_r128_dialog(
+    dialog_context* context
+) {
+    if (context == nullptr) {
+        return;
+    }
+
+    delete static_cast<direct_r128_preset_callback*>(
+        context->cleanup_state
+    );
+    delete context;
+}
+
+void activate_existing_direct_r128_dialog() {
+    if (!IsWindow(g_direct_r128_settings_window)) {
+        g_direct_r128_settings_window = nullptr;
+        return;
+    }
+
+    if (IsIconic(g_direct_r128_settings_window)) {
+        ShowWindow(
+            g_direct_r128_settings_window,
+            SW_RESTORE
+        );
+    }
+    else {
+        ShowWindow(
+            g_direct_r128_settings_window,
+            SW_SHOW
+        );
+    }
+
+    SetForegroundWindow(g_direct_r128_settings_window);
+}
+
+void show_r128_settings_from_main_menu() {
+    if (IsWindow(g_direct_r128_settings_window)) {
+        activate_existing_direct_r128_dialog();
+        return;
+    }
+
+    static_api_ptr_t<dsp_config_manager> manager;
+    dsp_chain_config_impl chain;
+    manager->get_core_settings(chain);
+
+    t_size match_count = 0;
+    t_size match_index = 0;
+
+    for (t_size index = 0;
+         index < chain.get_count();
+         ++index) {
+        if (chain.get_item(index).get_owner() ==
+            guid_r128_normalizer) {
+            match_index = index;
+            ++match_count;
+        }
+    }
+
+    const HWND owner = core_api::get_main_window();
+
+    if (match_count == 0) {
+        MessageBoxW(
+            owner,
+            L"R128 音量ノーマライザーは、現在のDSPチェーンに"
+            L"追加されていません。\n\n"
+            L"Playback → DSP Managerで追加してから、"
+            L"もう一度このメニューを開いてください。",
+            L"R128 音量ノーマライザー",
+            MB_OK | MB_ICONINFORMATION
+        );
+        return;
+    }
+
+    if (match_count > 1) {
+        MessageBoxW(
+            owner,
+            L"現在のDSPチェーンにR128 音量ノーマライザーが"
+            L"複数登録されています。\n\n"
+            L"誤った設定を変更しないため、DSP Managerから"
+            L"対象を選んで設定してください。",
+            L"R128 音量ノーマライザー",
+            MB_OK | MB_ICONWARNING
+        );
+        return;
+    }
+
+    const dsp_preset_impl preset(
+        chain.get_item(match_index)
+    );
+
+    auto* callback =
+        new direct_r128_preset_callback();
+    auto* context =
+        new dialog_context();
+
+    context->value = parse_preset(preset);
+    context->callback = callback;
+    context->modeless = true;
+    context->tracked_window =
+        &g_direct_r128_settings_window;
+    context->cleanup_state = callback;
+    context->cleanup =
+        cleanup_direct_r128_dialog;
+
+    // Owned modeless dialog:
+    // stays above foobar2000 without disabling it,
+    // but is not topmost over unrelated applications.
+    const HWND dialog = CreateDialogParamW(
+        core_api::get_my_instance(),
+        MAKEINTRESOURCEW(IDD_R128_CONFIG),
+        owner,
+        config_dialog_proc,
+        reinterpret_cast<LPARAM>(context)
+    );
+
+    if (dialog == nullptr) {
+        cleanup_direct_r128_dialog(context);
+
+        MessageBoxW(
+            owner,
+            L"設定画面を作成できませんでした。",
+            L"R128 音量ノーマライザー",
+            MB_OK | MB_ICONERROR
+        );
+        return;
+    }
+
+    g_direct_r128_settings_window = dialog;
+    callback->set_dialog(dialog);
+
+    ShowWindow(dialog, SW_SHOW);
+    SetForegroundWindow(dialog);
+}
+
+class mainmenu_commands_r128_settings
+    : public mainmenu_commands {
+public:
+    t_uint32 get_command_count() override {
+        return 1;
+    }
+
+    GUID get_command(t_uint32 index) override {
+        if (index != 0) {
+            uBugCheck();
+        }
+
+        return guid_mainmenu_open_r128_settings;
+    }
+
+    void get_name(
+        t_uint32 index,
+        pfc::string_base& out
+    ) override {
+        if (index != 0) {
+            uBugCheck();
+        }
+
+        out =
+            "R128 \xE9\x9F\xB3\xE9\x87\x8F"
+            "\xE3\x83\x8E\xE3\x83\xBC\xE3\x83\x9E"
+            "\xE3\x83\xA9\xE3\x82\xA4\xE3\x82\xB6"
+            "\xE3\x83\xBC\xE3\x81\xAE\xE8\xA8\xAD"
+            "\xE5\xAE\x9A...";
+    }
+
+    bool get_description(
+        t_uint32 index,
+        pfc::string_base& out
+    ) override {
+        if (index != 0) {
+            uBugCheck();
+        }
+
+        out =
+            "R128 \xE9\x9F\xB3\xE9\x87\x8F"
+            "\xE3\x83\x8E\xE3\x83\xBC\xE3\x83\x9E"
+            "\xE3\x83\xA9\xE3\x82\xA4\xE3\x82\xB6"
+            "\xE3\x83\xBC\xE3\x81\xAE\xE8\xA8\xAD"
+            "\xE5\xAE\x9A\xE7\x94\xBB\xE9\x9D\xA2"
+            "\xE3\x82\x92\xE7\x9B\xB4\xE6\x8E\xA5"
+            "\xE9\x96\x8B\xE3\x81\x8D\xE3\x81\xBE"
+            "\xE3\x81\x99\xE3\x80\x82";
+        return true;
+    }
+
+    GUID get_parent() override {
+        return mainmenu_groups::playback;
+    }
+
+    void execute(
+        t_uint32 index,
+        service_ptr_t<service_base> callback
+    ) override {
+        (void)callback;
+
+        if (index != 0) {
+            uBugCheck();
+        }
+
+        show_r128_settings_from_main_menu();
+    }
+};
+
+static mainmenu_commands_factory_t<
+    mainmenu_commands_r128_settings
+> g_mainmenu_commands_r128_settings_factory;
+
+} // namespace
