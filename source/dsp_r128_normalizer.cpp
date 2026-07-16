@@ -265,6 +265,143 @@ r128_settings three_band_profile() {
     return value;
 }
 
+
+enum class recognized_profile {
+    standard,
+    streaming,
+    broadcast,
+    night,
+    modern,
+    adaptive,
+    three_band,
+    custom
+};
+
+bool settings_float_equal(float left, float right) {
+    return std::fabs(left - right) <= 0.0005f;
+}
+
+bool settings_equal(
+    const r128_settings& left,
+    const r128_settings& right
+) {
+    return
+        settings_float_equal(left.target_lufs, right.target_lufs) &&
+        settings_float_equal(left.max_boost_db, right.max_boost_db) &&
+        settings_float_equal(
+            left.max_attenuation_db,
+            right.max_attenuation_db
+        ) &&
+        settings_float_equal(
+            left.true_peak_limit_dbtp,
+            right.true_peak_limit_dbtp
+        ) &&
+        settings_float_equal(left.lookahead_ms, right.lookahead_ms) &&
+        settings_float_equal(
+            left.limiter_release_ms,
+            right.limiter_release_ms
+        ) &&
+        settings_float_equal(
+            left.startup_analysis_seconds,
+            right.startup_analysis_seconds
+        ) &&
+        settings_float_equal(
+            left.silence_guard_lufs,
+            right.silence_guard_lufs
+        ) &&
+        settings_float_equal(
+            left.gain_lock_seconds,
+            right.gain_lock_seconds
+        ) &&
+        settings_float_equal(
+            left.gain_lock_tolerance_lu,
+            right.gain_lock_tolerance_lu
+        ) &&
+        settings_float_equal(
+            left.modern_strength_percent,
+            right.modern_strength_percent
+        ) &&
+        left.reset_each_track == right.reset_each_track &&
+        left.enable_peak_guard == right.enable_peak_guard &&
+        left.enable_silence_guard == right.enable_silence_guard &&
+        left.enable_gain_lock == right.enable_gain_lock &&
+        left.enable_modern_boost == right.enable_modern_boost &&
+        left.enable_adaptive_master == right.enable_adaptive_master &&
+        left.enable_three_band_master ==
+            right.enable_three_band_master;
+}
+
+recognized_profile detect_recognized_profile(
+    const r128_settings& value
+) {
+    if (settings_equal(value, standard_profile())) {
+        return recognized_profile::standard;
+    }
+    if (settings_equal(value, streaming_profile())) {
+        return recognized_profile::streaming;
+    }
+    if (settings_equal(value, broadcast_profile())) {
+        return recognized_profile::broadcast;
+    }
+    if (settings_equal(value, night_profile())) {
+        return recognized_profile::night;
+    }
+    if (settings_equal(value, modern_profile())) {
+        return recognized_profile::modern;
+    }
+    if (settings_equal(value, adaptive_profile())) {
+        return recognized_profile::adaptive;
+    }
+    if (settings_equal(value, three_band_profile())) {
+        return recognized_profile::three_band;
+    }
+
+    return recognized_profile::custom;
+}
+
+const wchar_t* recognized_profile_name(
+    recognized_profile profile
+) {
+    switch (profile) {
+    case recognized_profile::standard:
+        return L"自然 -18";
+    case recognized_profile::streaming:
+        return L"パワー -14";
+    case recognized_profile::broadcast:
+        return L"リラックス -23";
+    case recognized_profile::night:
+        return L"ナイト -22";
+    case recognized_profile::modern:
+        return L"モダン -9";
+    case recognized_profile::adaptive:
+        return L"自動1帯 -10";
+    case recognized_profile::three_band:
+        return L"自動3帯 -10";
+    default:
+        return L"カスタム設定";
+    }
+}
+
+void update_profile_indicator(
+    HWND wnd,
+    const r128_settings& value,
+    bool pending
+) {
+    wchar_t text[96] = {};
+    swprintf_s(
+        text,
+        pending ? L"選択: %s" : L"現在: %s",
+        recognized_profile_name(
+            detect_recognized_profile(value)
+        )
+    );
+    SetDlgItemTextW(
+        wnd,
+        IDC_PROFILE_DESCRIPTION,
+        text
+    );
+}
+
 template<typename T>
 T clamp_value(T value, T minimum, T maximum) {
     if (value < minimum) return minimum;
@@ -1407,7 +1544,7 @@ std::wstring build_diagnostic_report() {
     wchar_t report[6656] = {};
     swprintf_s(
         report,
-        L"R128 音量ノーマライザー 1.4.0\r\n"
+        L"R128 音量ノーマライザー 1.4.1\r\n"
         L"再生状態: %s\r\n"
         L"補正状態: %s\r\n"
         L"補正ゲイン固定: %s\r\n"
@@ -3063,6 +3200,11 @@ bool apply_dialog_settings(
         context->callback->on_preset_changed(new_preset);
     }
 
+    update_profile_indicator(
+        wnd,
+        context->value,
+        false
+    );
     set_control_text(
         wnd,
         IDC_APPLY_STATUS,
@@ -3098,11 +3240,13 @@ INT_PTR CALLBACK config_dialog_proc(HWND wnd, UINT message, WPARAM wp, LPARAM lp
             BST_CHECKED
         );
         settings_to_dialog(wnd, context->value);
-        set_control_text(
-            wnd,
-            IDC_PROFILE_DESCRIPTION,
-            L"プリセットを選ぶと、ここに用途と特徴が表示されます。"
-        );
+        if (context != nullptr) {
+            update_profile_indicator(
+                wnd,
+                context->value,
+                false
+            );
+        }
         set_control_text(
             wnd,
             IDC_APPLY_STATUS,
@@ -3237,10 +3381,10 @@ INT_PTR CALLBACK config_dialog_proc(HWND wnd, UINT message, WPARAM wp, LPARAM lp
             if (context != nullptr) {
                 context->value = standard_profile();
                 settings_to_dialog(wnd, context->value);
-                set_control_text(
+                update_profile_indicator(
                     wnd,
-                    IDC_PROFILE_DESCRIPTION,
-                    L"ナチュラル -18：普段の音楽再生向け。自然な音量感にそろえます。"
+                    context->value,
+                    true
                 );
                 set_control_text(
                     wnd,
@@ -3254,10 +3398,10 @@ INT_PTR CALLBACK config_dialog_proc(HWND wnd, UINT message, WPARAM wp, LPARAM lp
             if (context != nullptr) {
                 context->value = streaming_profile();
                 settings_to_dialog(wnd, context->value);
-                set_control_text(
+                update_profile_indicator(
                     wnd,
-                    IDC_PROFILE_DESCRIPTION,
-                    L"パワーブースト -14：小さい音源を強めに持ち上げ、迫力ある音量にします。"
+                    context->value,
+                    true
                 );
                 set_control_text(
                     wnd,
@@ -3271,10 +3415,10 @@ INT_PTR CALLBACK config_dialog_proc(HWND wnd, UINT message, WPARAM wp, LPARAM lp
             if (context != nullptr) {
                 context->value = broadcast_profile();
                 settings_to_dialog(wnd, context->value);
-                set_control_text(
+                update_profile_indicator(
                     wnd,
-                    IDC_PROFILE_DESCRIPTION,
-                    L"リラックス -23：全体を控えめにそろえ、長時間でも聴きやすくします。"
+                    context->value,
+                    true
                 );
                 set_control_text(
                     wnd,
@@ -3288,10 +3432,10 @@ INT_PTR CALLBACK config_dialog_proc(HWND wnd, UINT message, WPARAM wp, LPARAM lp
             if (context != nullptr) {
                 context->value = night_profile();
                 settings_to_dialog(wnd, context->value);
-                set_control_text(
+                update_profile_indicator(
                     wnd,
-                    IDC_PROFILE_DESCRIPTION,
-                    L"ナイトセーフ -22：夜間向け。音量とピークを低めに抑えます。"
+                    context->value,
+                    true
                 );
                 set_control_text(
                     wnd,
@@ -3305,10 +3449,10 @@ INT_PTR CALLBACK config_dialog_proc(HWND wnd, UINT message, WPARAM wp, LPARAM lp
             if (context != nullptr) {
                 context->value = modern_profile();
                 settings_to_dialog(wnd, context->value);
-                set_control_text(
+                update_profile_indicator(
                     wnd,
-                    IDC_PROFILE_DESCRIPTION,
-                    L"モダンブースト -9：圧縮とソフトクリップで高密度な音に近づけます。"
+                    context->value,
+                    true
                 );
                 set_control_text(
                     wnd,
@@ -3322,10 +3466,10 @@ INT_PTR CALLBACK config_dialog_proc(HWND wnd, UINT message, WPARAM wp, LPARAM lp
             if (context != nullptr) {
                 context->value = adaptive_profile();
                 settings_to_dialog(wnd, context->value);
-                set_control_text(
+                update_profile_indicator(
                     wnd,
-                    IDC_PROFILE_DESCRIPTION,
-                    L"アダプティブ -10：曲のLRAと音量を解析し、強度を自動調整します。"
+                    context->value,
+                    true
                 );
                 set_control_text(
                     wnd,
@@ -3339,10 +3483,10 @@ INT_PTR CALLBACK config_dialog_proc(HWND wnd, UINT message, WPARAM wp, LPARAM lp
             if (context != nullptr) {
                 context->value = three_band_profile();
                 settings_to_dialog(wnd, context->value);
-                set_control_text(
+                update_profile_indicator(
                     wnd,
-                    IDC_PROFILE_DESCRIPTION,
-                    L"3バンド自動 -10：低・中・高域を別々に制御し、潰れとざらつきを抑えます。"
+                    context->value,
+                    true
                 );
                 set_control_text(
                     wnd,
@@ -3399,7 +3543,7 @@ INT_PTR CALLBACK config_dialog_proc(HWND wnd, UINT message, WPARAM wp, LPARAM lp
         case IDC_SHOW_LICENSE:
             MessageBoxW(
                 wnd,
-                L"R128 リアルタイム音量ノーマライザー 1.4.0\n"
+                L"R128 リアルタイム音量ノーマライザー 1.4.1\n"
                 L"\n"
                 L"作者：Maximum\n"
                 L"Copyright (c) 2026 Maximum\n"

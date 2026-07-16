@@ -280,7 +280,7 @@ BEGIN
 
     GROUPBOX        "選択中のプリセット／比較",
                     -1, 8, 242, 504, 31
-    LTEXT           "プリセットを選ぶと用途と特徴が表示されます。",
+    LTEXT           "現在: 自然 -18",
                     IDC_PROFILE_DESCRIPTION,
                     14, 254, 200, 12, SS_LEFTNOWORDWRAP | SS_NOPREFIX
     CONTROL         "音量一致", IDC_COMPARE_LOUDNESS_MATCH, "Button",
