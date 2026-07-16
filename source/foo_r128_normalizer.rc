@@ -1,0 +1,327 @@
+﻿#pragma code_page(65001)
+
+#include <windows.h>
+#include <commctrl.h>
+#include "resource.h"
+
+IDD_R128_CONFIG DIALOGEX 0, 0, 520, 306
+STYLE DS_SHELLFONT | DS_MODALFRAME | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU
+EXSTYLE WS_EX_CONTEXTHELP | WS_EX_CONTROLPARENT
+CAPTION "R128 音量ノーマライザー"
+FONT 9, "Yu Gothic UI"
+BEGIN
+    CONTROL         "", IDC_CONFIG_TABS, WC_TABCONTROL,
+                    TCS_TABS | TCS_SINGLELINE | WS_TABSTOP,
+                    8, 7, 504, 190
+
+    LTEXT           "R128の基本設定", IDC_BASIC_HEADER,
+                    20, 31, 150, 12
+
+    LTEXT           "目標LUFS：", IDC_LABEL_TARGET_LUFS,
+                    20, 49, 60, 12, SS_NOTIFY
+    EDITTEXT        IDC_TARGET_LUFS, 82, 46, 38, 14,
+                    ES_AUTOHSCROLL | ES_RIGHT
+    LTEXT           "LUFS", IDC_UNIT_TARGET_LUFS,
+                    124, 49, 28, 12
+
+    LTEXT           "最大増幅：", IDC_LABEL_MAX_BOOST,
+                    270, 49, 68, 12, SS_NOTIFY
+    EDITTEXT        IDC_MAX_BOOST, 340, 46, 38, 14,
+                    ES_AUTOHSCROLL | ES_RIGHT
+    LTEXT           "dB", IDC_UNIT_MAX_BOOST,
+                    382, 49, 28, 12
+
+    LTEXT           "最大減衰：", IDC_LABEL_MAX_ATTENUATION,
+                    20, 69, 60, 12, SS_NOTIFY
+    EDITTEXT        IDC_MAX_ATTENUATION, 82, 66, 38, 14,
+                    ES_AUTOHSCROLL | ES_RIGHT
+    LTEXT           "dB", IDC_UNIT_MAX_ATTENUATION,
+                    124, 69, 28, 12
+
+    LTEXT           "TP上限：", IDC_LABEL_TRUE_PEAK,
+                    270, 69, 68, 12, SS_NOTIFY
+    EDITTEXT        IDC_TRUE_PEAK, 340, 66, 38, 14,
+                    ES_AUTOHSCROLL | ES_RIGHT
+    LTEXT           "dBTP", IDC_UNIT_TRUE_PEAK,
+                    382, 69, 34, 12
+
+    LTEXT           "先読み：", IDC_LABEL_LOOKAHEAD,
+                    20, 89, 60, 12, SS_NOTIFY
+    EDITTEXT        IDC_LOOKAHEAD_MS, 82, 86, 38, 14,
+                    ES_AUTOHSCROLL | ES_RIGHT
+    LTEXT           "ms", IDC_UNIT_LOOKAHEAD,
+                    124, 89, 28, 12
+
+    LTEXT           "解放時間：", IDC_LABEL_LIMITER_RELEASE,
+                    270, 89, 68, 12, SS_NOTIFY
+    EDITTEXT        IDC_LIMITER_RELEASE_MS, 340, 86, 38, 14,
+                    ES_AUTOHSCROLL | ES_RIGHT
+    LTEXT           "ms", IDC_UNIT_LIMITER_RELEASE,
+                    382, 89, 28, 12
+
+    LTEXT           "曲頭安定化：", IDC_LABEL_STARTUP,
+                    20, 109, 60, 12, SS_NOTIFY
+    EDITTEXT        IDC_STARTUP_ANALYSIS_SECONDS, 82, 106, 38, 14,
+                    ES_AUTOHSCROLL | ES_RIGHT
+    LTEXT           "秒", IDC_UNIT_STARTUP,
+                    124, 109, 28, 12
+
+    LTEXT           "静音しきい値：", IDC_LABEL_SILENCE_THRESHOLD,
+                    270, 109, 68, 12, SS_NOTIFY
+    EDITTEXT        IDC_SILENCE_GUARD_LUFS, 340, 106, 38, 14,
+                    ES_AUTOHSCROLL | ES_RIGHT
+    LTEXT           "LUFS", IDC_UNIT_SILENCE_THRESHOLD,
+                    382, 109, 34, 12
+
+    LTEXT           "固定判定：", IDC_LABEL_GAIN_LOCK_SECONDS,
+                    20, 129, 60, 12, SS_NOTIFY
+    EDITTEXT        IDC_GAIN_LOCK_SECONDS, 82, 126, 38, 14,
+                    ES_AUTOHSCROLL | ES_RIGHT
+    LTEXT           "秒", IDC_UNIT_GAIN_LOCK_SECONDS,
+                    124, 129, 28, 12
+
+    LTEXT           "固定許容：", IDC_LABEL_GAIN_LOCK_TOLERANCE,
+                    270, 129, 68, 12, SS_NOTIFY
+    EDITTEXT        IDC_GAIN_LOCK_TOLERANCE_LU, 340, 126, 38, 14,
+                    ES_AUTOHSCROLL | ES_RIGHT
+    LTEXT           "LU", IDC_UNIT_GAIN_LOCK_TOLERANCE,
+                    382, 129, 28, 12
+
+    CONTROL         "曲変更時に測定をリセット",
+                    IDC_RESET_EACH_TRACK, "Button",
+                    BS_AUTOCHECKBOX | WS_TABSTOP, 20, 151, 190, 13
+    CONTROL         "True Peak＋先読み制限",
+                    IDC_ENABLE_PEAK_GUARD, "Button",
+                    BS_AUTOCHECKBOX | WS_TABSTOP, 270, 151, 190, 13
+    CONTROL         "静かな区間は増幅を保留",
+                    IDC_ENABLE_SILENCE_GUARD, "Button",
+                    BS_AUTOCHECKBOX | WS_TABSTOP, 20, 170, 190, 13
+    CONTROL         "安定後に曲中ゲイン固定",
+                    IDC_ENABLE_GAIN_LOCK, "Button",
+                    BS_AUTOCHECKBOX | WS_TABSTOP, 270, 170, 190, 13
+
+    LTEXT           "追加マスタリング処理（任意）", IDC_ADV_HEADER,
+                    20, 31, 240, 12
+    CONTROL         "モダン処理を有効",
+                    IDC_ENABLE_MODERN_BOOST, "Button",
+                    BS_AUTOCHECKBOX | WS_TABSTOP, 20, 52, 220, 13
+    CONTROL         "1バンド・アダプティブを有効",
+                    IDC_ENABLE_ADAPTIVE_MASTER, "Button",
+                    BS_AUTOCHECKBOX | WS_TABSTOP, 20, 76, 220, 13
+    CONTROL         "3バンド・アダプティブを有効",
+                    IDC_ENABLE_THREE_BAND_MASTER, "Button",
+                    BS_AUTOCHECKBOX | WS_TABSTOP, 20, 100, 240, 13
+
+    LTEXT           "モダン強度／上限：", IDC_LABEL_MODERN_STRENGTH,
+                    20, 128, 110, 12, SS_NOTIFY
+    EDITTEXT        IDC_MODERN_STRENGTH, 132, 125, 42, 14,
+                    ES_AUTOHSCROLL | ES_RIGHT
+    LTEXT           "%（0～100）", IDC_UNIT_MODERN_STRENGTH,
+                    180, 128, 80, 12
+
+    LTEXT           "モダン：コンプレッサー＋ソフトクリッパー＋リミッター",
+                    IDC_ADV_INFO_1, 20, 150, 470, 12
+    LTEXT           "アダプティブ：曲の音量・LRAに応じて強度を自動調整",
+                    IDC_ADV_INFO_2, 20, 166, 470, 12
+    LTEXT           "追加処理は音色・ダイナミクスに影響します。",
+                    IDC_ADV_INFO_3, 20, 182, 470, 12
+
+    LTEXT           "補正：", IDC_LABEL_DIAG_NORMALIZATION,
+                    18, 35, 50, 12, SS_NOTIFY
+    LTEXT           "待機中", IDC_DIAG_NORMALIZATION_STATE,
+                    70, 35, 100, 12, SS_LEFTNOWORDWRAP | SS_NOPREFIX
+
+    LTEXT           "Momentary：", IDC_LABEL_DIAG_MOMENTARY,
+                    182, 35, 50, 12, SS_NOTIFY
+    LTEXT           "待機中", IDC_DIAG_MOMENTARY,
+                    234, 35, 100, 12, SS_LEFTNOWORDWRAP | SS_NOPREFIX
+
+    LTEXT           "Short-term：", IDC_LABEL_DIAG_SHORT_TERM,
+                    346, 35, 54, 12, SS_NOTIFY
+    LTEXT           "待機中", IDC_DIAG_SHORT_TERM,
+                    402, 35, 100, 12, SS_LEFTNOWORDWRAP | SS_NOPREFIX
+
+    LTEXT           "固定：", IDC_LABEL_DIAG_GAIN_LOCK,
+                    18, 50, 50, 12, SS_NOTIFY
+    LTEXT           "待機中", IDC_DIAG_GAIN_LOCK,
+                    70, 50, 100, 12, SS_LEFTNOWORDWRAP | SS_NOPREFIX
+
+    LTEXT           "入力Int.：", IDC_LABEL_DIAG_INPUT_INT,
+                    182, 50, 50, 12, SS_NOTIFY
+    LTEXT           "待機中", IDC_DIAG_INTEGRATED,
+                    234, 50, 100, 12, SS_LEFTNOWORDWRAP | SS_NOPREFIX
+
+    LTEXT           "出力Int.：", IDC_LABEL_DIAG_OUTPUT_INT,
+                    346, 50, 54, 12, SS_NOTIFY
+    LTEXT           "待機中", IDC_DIAG_OUTPUT_INTEGRATED,
+                    402, 50, 100, 12, SS_LEFTNOWORDWRAP | SS_NOPREFIX
+
+    LTEXT           "目標差：", IDC_LABEL_DIAG_TARGET_DIFF,
+                    18, 65, 50, 12, SS_NOTIFY
+    LTEXT           "待機中", IDC_DIAG_TARGET_DIFFERENCE,
+                    70, 65, 100, 12, SS_LEFTNOWORDWRAP | SS_NOPREFIX
+
+    LTEXT           "LRA：", IDC_LABEL_DIAG_LRA,
+                    182, 65, 50, 12, SS_NOTIFY
+    LTEXT           "待機中", IDC_DIAG_LRA,
+                    234, 65, 100, 12, SS_LEFTNOWORDWRAP | SS_NOPREFIX
+
+    LTEXT           "総ゲイン：", IDC_LABEL_DIAG_GAIN,
+                    346, 65, 54, 12, SS_NOTIFY
+    LTEXT           "待機中", IDC_DIAG_GAIN,
+                    402, 65, 100, 12, SS_LEFTNOWORDWRAP | SS_NOPREFIX
+
+    LTEXT           "処理状態：", IDC_LABEL_DIAG_PROCESSING,
+                    18, 80, 50, 12, SS_NOTIFY
+    LTEXT           "無効", IDC_DIAG_PROCESSING_RISK,
+                    70, 80, 100, 12, SS_LEFTNOWORDWRAP | SS_NOPREFIX
+
+    LTEXT           "安全補正：", IDC_LABEL_DIAG_SAFETY,
+                    182, 80, 50, 12, SS_NOTIFY
+    LTEXT           "無効", IDC_DIAG_SAFETY_REDUCTION,
+                    234, 80, 100, 12, SS_LEFTNOWORDWRAP | SS_NOPREFIX
+
+    LTEXT           "コンプ：", IDC_LABEL_DIAG_COMPRESSOR,
+                    346, 80, 54, 12, SS_NOTIFY
+    LTEXT           "無効", IDC_DIAG_COMPRESSOR_REDUCTION,
+                    402, 80, 100, 12, SS_LEFTNOWORDWRAP | SS_NOPREFIX
+
+    LTEXT           "クリップ：", IDC_LABEL_DIAG_CLIPPER,
+                    18, 95, 50, 12, SS_NOTIFY
+    LTEXT           "無効", IDC_DIAG_CLIPPER_REDUCTION,
+                    70, 95, 100, 12, SS_LEFTNOWORDWRAP | SS_NOPREFIX
+
+    LTEXT           "リミッター：", IDC_LABEL_DIAG_LIMITER,
+                    182, 95, 50, 12, SS_NOTIFY
+    LTEXT           "待機中", IDC_DIAG_LIMITER_REDUCTION,
+                    234, 95, 100, 12, SS_LEFTNOWORDWRAP | SS_NOPREFIX
+
+    LTEXT           "True Peak：", IDC_LABEL_DIAG_TRUE_PEAK,
+                    346, 95, 54, 12, SS_NOTIFY
+    LTEXT           "待機中", IDC_DIAG_TRUE_PEAK,
+                    402, 95, 100, 12, SS_LEFTNOWORDWRAP | SS_NOPREFIX
+
+    LTEXT           "遅延：", IDC_LABEL_DIAG_LATENCY,
+                    18, 110, 50, 12, SS_NOTIFY
+    LTEXT           "0.0 ms", IDC_DIAG_LATENCY,
+                    70, 110, 100, 12, SS_LEFTNOWORDWRAP | SS_NOPREFIX
+
+    LTEXT           "ピーク保護：", IDC_LABEL_DIAG_PEAK_GUARD,
+                    182, 110, 50, 12, SS_NOTIFY
+    LTEXT           "待機中", IDC_DIAG_PEAK_GUARD,
+                    234, 110, 100, 12, SS_LEFTNOWORDWRAP | SS_NOPREFIX
+
+    LTEXT           "レート：", IDC_LABEL_DIAG_SAMPLE_RATE,
+                    346, 110, 54, 12, SS_NOTIFY
+    LTEXT           "未検出", IDC_DIAG_SAMPLE_RATE,
+                    402, 110, 100, 12, SS_LEFTNOWORDWRAP | SS_NOPREFIX
+
+    LTEXT           "構成：", IDC_LABEL_DIAG_CHANNEL_LAYOUT,
+                    18, 125, 50, 12, SS_NOTIFY
+    LTEXT           "未検出", IDC_DIAG_CHANNEL_LAYOUT,
+                    70, 125, 100, 12, SS_LEFTNOWORDWRAP | SS_NOPREFIX
+
+    LTEXT           "CPU：", IDC_LABEL_DIAG_CPU,
+                    182, 125, 50, 12, SS_NOTIFY
+    LTEXT           "0.00 %", IDC_DIAG_CPU_LOAD,
+                    234, 125, 100, 12, SS_LEFTNOWORDWRAP | SS_NOPREFIX
+
+    LTEXT           "0 dBTP超過：", IDC_LABEL_DIAG_CLIP_EVENTS,
+                    346, 125, 54, 12, SS_NOTIFY
+    LTEXT           "0 回", IDC_DIAG_CLIP_EVENT_COUNT,
+                    402, 125, 100, 12, SS_LEFTNOWORDWRAP | SS_NOPREFIX
+
+    LTEXT           "3バンド：", IDC_LABEL_DIAG_THREE_BAND,
+                    18, 140, 50, 12, SS_NOTIFY
+    LTEXT           "無効", IDC_DIAG_THREE_BAND_REDUCTION,
+                    70, 140, 264, 12, SS_LEFTNOWORDWRAP | SS_NOPREFIX
+
+    LTEXT           "総合評価：", IDC_LABEL_DIAG_EVALUATION,
+                    346, 140, 54, 12, SS_NOTIFY
+    LTEXT           "未測定", IDC_DIAG_PROCESSING_EVALUATION,
+                    402, 140, 100, 12, SS_LEFTNOWORDWRAP | SS_NOPREFIX
+
+    LTEXT           "最大TP：", IDC_LABEL_DIAG_MAX_TRUE_PEAK,
+                    18, 155, 50, 12, SS_NOTIFY
+    LTEXT           "未測定", IDC_DIAG_MAX_TRUE_PEAK,
+                    70, 155, 100, 12, SS_LEFTNOWORDWRAP | SS_NOPREFIX
+
+    LTEXT           "最大コンプ：", IDC_LABEL_DIAG_MAX_COMPRESSOR,
+                    182, 155, 50, 12, SS_NOTIFY
+    LTEXT           "0.00 dB", IDC_DIAG_MAX_COMPRESSOR_REDUCTION,
+                    234, 155, 100, 12, SS_LEFTNOWORDWRAP | SS_NOPREFIX
+
+    LTEXT           "最大クリップ：", IDC_LABEL_DIAG_MAX_CLIPPER,
+                    346, 155, 54, 12, SS_NOTIFY
+    LTEXT           "0.00 dB", IDC_DIAG_MAX_CLIPPER_REDUCTION,
+                    402, 155, 100, 12, SS_LEFTNOWORDWRAP | SS_NOPREFIX
+
+    LTEXT           "最大リミッター：", IDC_LABEL_DIAG_MAX_LIMITER,
+                    18, 170, 64, 12, SS_NOTIFY
+    LTEXT           "0.00 dB", IDC_DIAG_MAX_LIMITER_REDUCTION,
+                    84, 170, 100, 12, SS_LEFTNOWORDWRAP | SS_NOPREFIX
+
+    GROUPBOX        "プリセット（標準4種／追加処理3種）",
+                    -1, 8, 201, 504, 38
+    PUSHBUTTON      "自然 -18", IDC_PROFILE_STANDARD,
+                    14, 216, 68, 17
+    PUSHBUTTON      "パワー -14", IDC_PROFILE_STREAMING,
+                    84, 216, 68, 17
+    PUSHBUTTON      "リラックス -23", IDC_PROFILE_BROADCAST,
+                    154, 216, 72, 17
+    PUSHBUTTON      "ナイト -22", IDC_PROFILE_NIGHT,
+                    228, 216, 68, 17
+    PUSHBUTTON      "モダン -9", IDC_PROFILE_MODERN,
+                    298, 216, 66, 17
+    PUSHBUTTON      "自動1帯 -10", IDC_PROFILE_ADAPTIVE,
+                    366, 216, 72, 17
+    PUSHBUTTON      "自動3帯 -10", IDC_PROFILE_THREE_BAND,
+                    440, 216, 72, 17
+
+    GROUPBOX        "選択中のプリセット／比較",
+                    -1, 8, 242, 504, 31
+    LTEXT           "プリセットを選ぶと用途と特徴が表示されます。",
+                    IDC_PROFILE_DESCRIPTION,
+                    14, 254, 200, 12, SS_LEFTNOWORDWRAP | SS_NOPREFIX
+    CONTROL         "音量一致", IDC_COMPARE_LOUDNESS_MATCH, "Button",
+                    BS_AUTOCHECKBOX | WS_TABSTOP, 218, 252, 64, 13
+    CONTROL         "比較（押している間）", IDC_ORIGINAL_COMPARE,
+                    "Button", BS_PUSHBUTTON | BS_NOTIFY | WS_TABSTOP,
+                    286, 250, 140, 17
+    PUSHBUTTON      "ライセンス", IDC_SHOW_LICENSE,
+                    432, 250, 74, 17
+
+    PUSHBUTTON      "測定リセット", IDC_RESET_MEASUREMENT,
+                    8, 282, 72, 15
+    PUSHBUTTON      "診断コピー", IDC_COPY_DIAGNOSTICS,
+                    84, 282, 68, 15
+    LTEXT           "変更後は［適用］または［OK］",
+                    IDC_APPLY_STATUS,
+                    158, 284, 130, 12, SS_LEFTNOWORDWRAP | SS_NOPREFIX
+    PUSHBUTTON      "用語集", IDC_SHOW_DIAGNOSTIC_HELP,
+                    292, 282, 58, 15
+    PUSHBUTTON      "初期設定", IDC_DEFAULTS,
+                    354, 282, 44, 15
+    PUSHBUTTON      "適用", IDC_APPLY_SETTINGS,
+                    402, 282, 42, 15
+    DEFPUSHBUTTON   "OK", IDOK,
+                    448, 282, 30, 15
+    PUSHBUTTON      "取消", IDCANCEL,
+                    482, 282, 30, 15
+END
+
+IDD_R128_GLOSSARY DIALOGEX 0, 0, 480, 276
+STYLE DS_SHELLFONT | DS_MODALFRAME | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU
+EXSTYLE WS_EX_CONTROLPARENT
+CAPTION "R128 音量ノーマライザー 用語集"
+FONT 9, "Yu Gothic UI"
+BEGIN
+    LTEXT           "左の用語を選ぶと、このコンポーネント内での意味と読み方を表示します。",
+                    -1, 10, 9, 460, 14
+    LISTBOX         IDC_GLOSSARY_LIST, 10, 28, 130, 218,
+                    LBS_NOTIFY | WS_VSCROLL | WS_TABSTOP | WS_BORDER
+    EDITTEXT        IDC_GLOSSARY_DESCRIPTION, 148, 28, 322, 218,
+                    ES_MULTILINE | ES_READONLY | ES_AUTOVSCROLL |
+                    WS_VSCROLL | WS_TABSTOP | WS_BORDER
+    DEFPUSHBUTTON   "閉じる", IDOK, 404, 254, 66, 16
+END

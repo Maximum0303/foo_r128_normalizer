@@ -1,0 +1,43 @@
+R128 リアルタイム音量ノーマライザー v1.1.1
+THIRD-PARTY NOTICES / 第三者クレジット
+
+1. EBU R128 Normalizer by mudlord
+
+This component was developed with conceptual reference to the prior work
+"EBU R128 Normalizer" by mudlord.
+
+本コンポーネントは、mudlord氏による先行作品
+「EBU R128 Normalizer」を概念上の参考・先行事例の一つとしています。
+
+This implementation was independently written. No source code from that
+component is included in this distribution. This acknowledgement does not
+imply affiliation, sponsorship, or endorsement by mudlord.
+
+本実装は独立して作成されています。この配布物に当該コンポーネントの
+ソースコードは含まれていません。この謝辞は、mudlord氏との提携・協賛・
+承認関係を示すものではありません。
+
+
+2. foobar2000 SDK
+
+Built using the foobar2000 Software Development Kit.
+foobar2000 and its SDK are separate works associated with Peter Pawlowski
+and their respective contributors and rights holders.
+
+本コンポーネントはfoobar2000 SDKを使用してビルドされています。
+本コンポーネントは独立した非公式の第三者コンポーネントであり、
+foobar2000およびその作者・権利者との提携・承認関係はありません。
+
+The packaging script attempts to preserve the exact license/copyright files
+found in the installed SDK and places them under the "licenses/" directory
+inside the .fb2k-component package when available.
+
+
+3. Referenced loudness standards
+
+The design refers to concepts described by EBU R128 and ITU-R BS.1770.
+Mention of these standards does not claim certification, formal compliance,
+affiliation, or endorsement by the standards bodies.
+
+本コンポーネントはEBU R128およびITU-R BS.1770の考え方を参照しています。
+これは認証、正式適合、規格団体との提携・承認を意味しません。
