@@ -281,15 +281,15 @@ BEGIN
 
     GROUPBOX        "プリセット（上段：標準4種／下段：追加処理3種）",
                     -1, 8, 201, 504, 59
-    PUSHBUTTON      "自然 -18", IDC_PROFILE_STANDARD,
+    PUSHBUTTON      "ナチュラル -18", IDC_PROFILE_STANDARD,
                     14, 214, 116, 17
-    PUSHBUTTON      "パワー -14", IDC_PROFILE_STREAMING,
+    PUSHBUTTON      "パワーブースト -14", IDC_PROFILE_STREAMING,
                     136, 214, 116, 17
     PUSHBUTTON      "リラックス -23", IDC_PROFILE_BROADCAST,
                     258, 214, 116, 17
-    PUSHBUTTON      "ナイト -22", IDC_PROFILE_NIGHT,
+    PUSHBUTTON      "ナイトセーフ -22", IDC_PROFILE_NIGHT,
                     380, 214, 126, 17
-    PUSHBUTTON      "モダン -9", IDC_PROFILE_MODERN,
+    PUSHBUTTON      "モダンブースト -9", IDC_PROFILE_MODERN,
                     14, 234, 156, 17
     PUSHBUTTON      "1バンド・アダプティブ -10", IDC_PROFILE_ADAPTIVE,
                     176, 234, 156, 17
@@ -298,7 +298,7 @@ BEGIN
 
     GROUPBOX        "選択中のプリセット／比較",
                     -1, 8, 263, 504, 31
-    LTEXT           "現在: 自然 -18",
+    LTEXT           "現在: ナチュラル -18",
                     IDC_PROFILE_DESCRIPTION,
                     14, 275, 200, 12, SS_LEFTNOWORDWRAP | SS_NOPREFIX
     CONTROL         "音量一致", IDC_COMPARE_LOUDNESS_MATCH, "Button",
@@ -354,5 +354,17 @@ BEGIN
                     ES_MULTILINE | ES_READONLY | ES_AUTOVSCROLL |
                     WS_VSCROLL | WS_TABSTOP | WS_BORDER
     DEFPUSHBUTTON   "閉じる", IDOK, 174, 184, 66, 16
+END
+
+IDD_R128_CONFIRM_DEFAULTS DIALOGEX 0, 0, 260, 108
+STYLE DS_SHELLFONT | DS_MODALFRAME | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU
+EXSTYLE WS_EX_CONTROLPARENT
+CAPTION "初期設定の確認"
+FONT 9, "Yu Gothic UI"
+BEGIN
+    LTEXT           "現在の未適用変更を破棄し、すべての設定欄を初期設定へ戻します。\r\n［初期設定に戻す］のあと［適用］を押すと、再生中のDSPへ反映されます。\r\n続けますか？",
+                    -1, 12, 12, 236, 52
+    PUSHBUTTON      "初期設定に戻す", IDOK, 88, 80, 86, 16
+    DEFPUSHBUTTON   "キャンセル", IDCANCEL, 180, 80, 68, 16
 END
 

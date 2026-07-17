@@ -3,6 +3,7 @@
 #define IDD_R128_CONFIG            101
 #define IDD_R128_GLOSSARY          102
 #define IDD_R128_TEXT_INFO         103
+#define IDD_R128_CONFIRM_DEFAULTS  104
 
 #define IDC_TARGET_LUFS            1001
 #define IDC_MAX_BOOST              1002

@@ -364,15 +364,15 @@ const wchar_t* recognized_profile_name(
 ) {
     switch (profile) {
     case recognized_profile::standard:
-        return L"自然 -18";
+        return L"ナチュラル -18";
     case recognized_profile::streaming:
-        return L"パワー -14";
+        return L"パワーブースト -14";
     case recognized_profile::broadcast:
         return L"リラックス -23";
     case recognized_profile::night:
-        return L"ナイト -22";
+        return L"ナイトセーフ -22";
     case recognized_profile::modern:
-        return L"モダン -9";
+        return L"モダンブースト -9";
     case recognized_profile::adaptive:
         return L"1バンド・アダプティブ -10";
     case recognized_profile::three_band:
@@ -1551,7 +1551,7 @@ std::wstring build_diagnostic_report() {
     wchar_t report[6656] = {};
     swprintf_s(
         report,
-        L"R128 音量ノーマライザー 1.5.2\r\n"
+        L"R128 音量ノーマライザー 1.5.3\r\n"
         L"再生状態: %s\r\n"
         L"補正状態: %s\r\n"
         L"補正ゲイン固定: %s\r\n"
@@ -2947,8 +2947,61 @@ void show_text_info_dialog(
     );
 }
 
+INT_PTR CALLBACK confirm_defaults_dialog_proc(
+    HWND wnd,
+    UINT message,
+    WPARAM wp,
+    LPARAM
+) {
+    auto* dark_mode = reinterpret_cast<fb2k::CCoreDarkModeHooks*>(
+        GetWindowLongPtrW(wnd, GWLP_USERDATA)
+    );
+
+    switch (message) {
+    case WM_INITDIALOG:
+        dark_mode = new fb2k::CCoreDarkModeHooks();
+        SetWindowLongPtrW(
+            wnd,
+            GWLP_USERDATA,
+            reinterpret_cast<LONG_PTR>(dark_mode)
+        );
+        dark_mode->AddDialogWithControls(wnd);
+
+        SetFocus(GetDlgItem(wnd, IDCANCEL));
+        return FALSE;
+
+    case WM_COMMAND:
+        if (LOWORD(wp) == IDOK || LOWORD(wp) == IDCANCEL) {
+            EndDialog(wnd, LOWORD(wp));
+            return TRUE;
+        }
+        break;
+
+    case WM_CLOSE:
+        EndDialog(wnd, IDCANCEL);
+        return TRUE;
+
+    case WM_NCDESTROY:
+        SetWindowLongPtrW(wnd, GWLP_USERDATA, 0);
+        delete dark_mode;
+        return FALSE;
+    }
+
+    return FALSE;
+}
+
+bool confirm_restore_defaults(HWND owner) {
+    return DialogBoxParamW(
+        core_api::get_my_instance(),
+        MAKEINTRESOURCEW(IDD_R128_CONFIRM_DEFAULTS),
+        owner,
+        confirm_defaults_dialog_proc,
+        0
+    ) == IDOK;
+}
+
 constexpr wchar_t kLicenseCreditsText[] =
-    L"R128 リアルタイム音量ノーマライザー 1.5.2\r\n"
+    L"R128 リアルタイム音量ノーマライザー 1.5.3\r\n"
     L"\r\n"
     L"作者：Maximum\r\n"
     L"Copyright (c) 2026 Maximum\r\n"
@@ -3195,6 +3248,8 @@ struct dialog_context {
     dsp_preset_edit_callback* callback = nullptr;
     HWND tooltip = nullptr;
     fb2k::CCoreDarkModeHooks dark_mode;
+    bool updating_controls = false;
+    bool has_unapplied_changes = false;
 
     // Direct main-menu launch only.
     // Modal DSP Manager dialogs leave these at their defaults.
@@ -3203,6 +3258,102 @@ struct dialog_context {
     void* cleanup_state = nullptr;
     void (*cleanup)(dialog_context*) = nullptr;
 };
+
+constexpr int kSettingEditControls[] = {
+    IDC_TARGET_LUFS,
+    IDC_MAX_BOOST,
+    IDC_MAX_ATTENUATION,
+    IDC_TRUE_PEAK,
+    IDC_LOOKAHEAD_MS,
+    IDC_LIMITER_RELEASE_MS,
+    IDC_STARTUP_ANALYSIS_SECONDS,
+    IDC_SILENCE_GUARD_LUFS,
+    IDC_GAIN_LOCK_SECONDS,
+    IDC_GAIN_LOCK_TOLERANCE_LU,
+    IDC_MODERN_STRENGTH
+};
+
+constexpr int kSettingCheckControls[] = {
+    IDC_RESET_EACH_TRACK,
+    IDC_ENABLE_PEAK_GUARD,
+    IDC_ENABLE_SILENCE_GUARD,
+    IDC_ENABLE_GAIN_LOCK,
+    IDC_ENABLE_MODERN_BOOST,
+    IDC_ENABLE_ADAPTIVE_MASTER,
+    IDC_ENABLE_THREE_BAND_MASTER
+};
+
+template <t_size Count>
+bool contains_control_id(
+    const int (&controls)[Count],
+    int control_id
+) {
+    for (const int candidate : controls) {
+        if (candidate == control_id) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+void set_apply_button_state(
+    HWND wnd,
+    dialog_context* context,
+    bool has_unapplied_changes
+) {
+    if (context != nullptr) {
+        context->has_unapplied_changes = has_unapplied_changes;
+    }
+
+    const HWND apply_button =
+        GetDlgItem(wnd, IDC_APPLY_SETTINGS);
+
+    if (apply_button != nullptr) {
+        EnableWindow(
+            apply_button,
+            has_unapplied_changes ? TRUE : FALSE
+        );
+    }
+}
+
+void mark_unapplied_changes(
+    HWND wnd,
+    dialog_context* context
+) {
+    if (context == nullptr || context->updating_controls) {
+        return;
+    }
+
+    set_apply_button_state(wnd, context, true);
+    set_control_text(
+        wnd,
+        IDC_APPLY_STATUS,
+        L"未適用の変更があります"
+    );
+}
+
+void select_profile_in_dialog(
+    HWND wnd,
+    dialog_context* context,
+    const r128_settings& profile
+) {
+    if (context == nullptr) {
+        return;
+    }
+
+    context->value = profile;
+    context->updating_controls = true;
+    settings_to_dialog(wnd, context->value);
+    context->updating_controls = false;
+
+    update_profile_indicator(
+        wnd,
+        context->value,
+        true
+    );
+    mark_unapplied_changes(wnd, context);
+}
 
 void close_config_dialog(
     HWND wnd,
@@ -3352,6 +3503,7 @@ bool apply_dialog_settings(
         context->value,
         false
     );
+    set_apply_button_state(wnd, context, false);
     set_control_text(
         wnd,
         IDC_APPLY_STATUS,
@@ -3409,14 +3561,18 @@ INT_PTR CALLBACK config_dialog_proc(HWND wnd, UINT message, WPARAM wp, LPARAM lp
             IDC_COMPARE_LOUDNESS_MATCH,
             BST_CHECKED
         );
-        settings_to_dialog(wnd, context->value);
         if (context != nullptr) {
+            context->updating_controls = true;
+            settings_to_dialog(wnd, context->value);
+            context->updating_controls = false;
+
             update_profile_indicator(
                 wnd,
                 context->value,
                 false
             );
         }
+        set_apply_button_state(wnd, context, false);
         set_control_text(
             wnd,
             IDC_APPLY_STATUS,
@@ -3564,131 +3720,104 @@ INT_PTR CALLBACK config_dialog_proc(HWND wnd, UINT message, WPARAM wp, LPARAM lp
                 set_control_text(
                     wnd,
                     IDC_APPLY_STATUS,
-                    L"処理音へ戻りました"
+                    context != nullptr &&
+                    context->has_unapplied_changes
+                        ? L"未適用の変更があります"
+                        : L"処理音へ戻りました"
                 );
                 return TRUE;
             }
         }
 
+        if (context != nullptr &&
+            !context->updating_controls) {
+            const int control_id = LOWORD(wp);
+            const WORD notification = HIWORD(wp);
+
+            const bool edited_value =
+                notification == EN_CHANGE &&
+                contains_control_id(
+                    kSettingEditControls,
+                    control_id
+                );
+
+            const bool clicked_setting =
+                notification == BN_CLICKED &&
+                contains_control_id(
+                    kSettingCheckControls,
+                    control_id
+                );
+
+            if (edited_value || clicked_setting) {
+                mark_unapplied_changes(wnd, context);
+            }
+        }
+
         switch (LOWORD(wp)) {
         case IDC_DEFAULTS:
-        case IDC_PROFILE_STANDARD:
-            if (context != nullptr) {
-                context->value = standard_profile();
-                settings_to_dialog(wnd, context->value);
-                update_profile_indicator(
+            if (confirm_restore_defaults(wnd)) {
+                select_profile_in_dialog(
                     wnd,
-                    context->value,
-                    true
-                );
-                set_control_text(
-                    wnd,
-                    IDC_APPLY_STATUS,
-                    L"未適用の変更があります"
+                    context,
+                    standard_profile()
                 );
             }
+            return TRUE;
+
+        case IDC_PROFILE_STANDARD:
+            select_profile_in_dialog(
+                wnd,
+                context,
+                standard_profile()
+            );
             return TRUE;
 
         case IDC_PROFILE_STREAMING:
-            if (context != nullptr) {
-                context->value = streaming_profile();
-                settings_to_dialog(wnd, context->value);
-                update_profile_indicator(
-                    wnd,
-                    context->value,
-                    true
-                );
-                set_control_text(
-                    wnd,
-                    IDC_APPLY_STATUS,
-                    L"未適用の変更があります"
-                );
-            }
+            select_profile_in_dialog(
+                wnd,
+                context,
+                streaming_profile()
+            );
             return TRUE;
 
         case IDC_PROFILE_BROADCAST:
-            if (context != nullptr) {
-                context->value = broadcast_profile();
-                settings_to_dialog(wnd, context->value);
-                update_profile_indicator(
-                    wnd,
-                    context->value,
-                    true
-                );
-                set_control_text(
-                    wnd,
-                    IDC_APPLY_STATUS,
-                    L"未適用の変更があります"
-                );
-            }
+            select_profile_in_dialog(
+                wnd,
+                context,
+                broadcast_profile()
+            );
             return TRUE;
 
         case IDC_PROFILE_NIGHT:
-            if (context != nullptr) {
-                context->value = night_profile();
-                settings_to_dialog(wnd, context->value);
-                update_profile_indicator(
-                    wnd,
-                    context->value,
-                    true
-                );
-                set_control_text(
-                    wnd,
-                    IDC_APPLY_STATUS,
-                    L"未適用の変更があります"
-                );
-            }
+            select_profile_in_dialog(
+                wnd,
+                context,
+                night_profile()
+            );
             return TRUE;
 
         case IDC_PROFILE_MODERN:
-            if (context != nullptr) {
-                context->value = modern_profile();
-                settings_to_dialog(wnd, context->value);
-                update_profile_indicator(
-                    wnd,
-                    context->value,
-                    true
-                );
-                set_control_text(
-                    wnd,
-                    IDC_APPLY_STATUS,
-                    L"未適用の変更があります"
-                );
-            }
+            select_profile_in_dialog(
+                wnd,
+                context,
+                modern_profile()
+            );
             return TRUE;
 
         case IDC_PROFILE_ADAPTIVE:
-            if (context != nullptr) {
-                context->value = adaptive_profile();
-                settings_to_dialog(wnd, context->value);
-                update_profile_indicator(
-                    wnd,
-                    context->value,
-                    true
-                );
-                set_control_text(
-                    wnd,
-                    IDC_APPLY_STATUS,
-                    L"未適用の変更があります"
-                );
-            }
+            select_profile_in_dialog(
+                wnd,
+                context,
+                adaptive_profile()
+            );
             return TRUE;
 
         case IDC_PROFILE_THREE_BAND:
-            if (context != nullptr) {
-                context->value = three_band_profile();
-                settings_to_dialog(wnd, context->value);
-                update_profile_indicator(
-                    wnd,
-                    context->value,
-                    true
-                );
-                set_control_text(
-                    wnd,
-                    IDC_APPLY_STATUS,
-                    L"未適用の変更があります"
-                );
-            }
+            select_profile_in_dialog(
+                wnd,
+                context,
+                three_band_profile()
+            );
             return TRUE;
 
         case IDC_RESET_MEASUREMENT:
@@ -3744,11 +3873,18 @@ INT_PTR CALLBACK config_dialog_proc(HWND wnd, UINT message, WPARAM wp, LPARAM lp
             return TRUE;
 
         case IDC_APPLY_SETTINGS:
-            apply_dialog_settings(wnd, context);
+            if (context != nullptr &&
+                context->has_unapplied_changes) {
+                apply_dialog_settings(wnd, context);
+            }
             return TRUE;
 
         case IDOK:
-            if (apply_dialog_settings(wnd, context)) {
+            if (context == nullptr ||
+                !context->has_unapplied_changes) {
+                close_config_dialog(wnd, IDOK, context);
+            }
+            else if (apply_dialog_settings(wnd, context)) {
                 close_config_dialog(wnd, IDOK, context);
             }
             return TRUE;
