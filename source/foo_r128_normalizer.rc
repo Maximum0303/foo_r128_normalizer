@@ -194,7 +194,7 @@ BEGIN
     LTEXT           "無効", IDC_DIAG_PROCESSING_RISK,
                     148, 138, 104, 10, SS_LEFTNOWORDWRAP | SS_NOPREFIX
 
-    LTEXT           "安全補正ゲイン：", IDC_LABEL_DIAG_SAFETY,
+    LTEXT           "自動安全補正ゲイン：", IDC_LABEL_DIAG_SAFETY,
                     18, 148, 128, 10, SS_NOTIFY
     LTEXT           "無効", IDC_DIAG_SAFETY_REDUCTION,
                     148, 148, 104, 10, SS_LEFTNOWORDWRAP | SS_NOPREFIX
@@ -274,7 +274,7 @@ BEGIN
     LTEXT           "0.00 dB", IDC_DIAG_MAX_LIMITER_REDUCTION,
                     400, 169, 102, 10, SS_LEFTNOWORDWRAP | SS_NOPREFIX
 
-    LTEXT           "処理総合評価：", IDC_LABEL_DIAG_EVALUATION,
+    LTEXT           "現在の処理状態：", IDC_LABEL_DIAG_EVALUATION,
                     270, 180, 128, 10, SS_NOTIFY
     LTEXT           "未測定", IDC_DIAG_PROCESSING_EVALUATION,
                     400, 180, 102, 10, SS_LEFTNOWORDWRAP | SS_NOPREFIX

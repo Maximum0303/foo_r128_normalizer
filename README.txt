@@ -1,9 +1,9 @@
-R128 リアルタイム音量ノーマライザー v1.5.3
+R128 リアルタイム音量ノーマライザー v1.5.4
 
 通常の利用にVisual Studioやfoobar2000 SDKは必要ありません。
 
 インストール:
-1. foo_r128_normalizer_v1.5.3.fb2k-componentを開く
+1. foo_r128_normalizer_v1.5.4.fb2k-componentを開く
 2. foobar2000へインストール
 3. foobar2000を再起動
 4. DSP Managerで「R128 音量ノーマライザー」を追加
@@ -70,3 +70,9 @@ Maximum
 
 ライセンス:
 MIT License
+
+リアルタイム自動制御:
+・要調整相当が0.75秒続くと自動安全補正
+・補正上限は6 dB
+・安全状態が3秒続くと補正をゆっくり解除
+・状態は「正常／要調整／自動調整中／調整上限」で表示

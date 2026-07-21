@@ -1,19 +1,19 @@
 GitHub公開手順
-R128 リアルタイム音量ノーマライザー v1.5.3
+R128 リアルタイム音量ノーマライザー v1.5.4
 
 推奨Release:
-・Tag: v1.5.3
-・Title: R128 リアルタイム音量ノーマライザー v1.5.3
+・Tag: v1.5.4
+・Title: R128 リアルタイム音量ノーマライザー v1.5.4
 
 アップロードするRelease Assets:
-1. foo_r128_normalizer_v1.5.3.fb2k-component
+1. foo_r128_normalizer_v1.5.4.fb2k-component
 2. SHA256SUMS.txt
 
 任意:
 ・CHANGELOG.txt
 
 一般利用者向けの主配布物は、
-foo_r128_normalizer_v1.5.3.fb2k-component
+foo_r128_normalizer_v1.5.4.fb2k-component
 そのものです。
 
 ZIPへ入れて配布すると、
@@ -29,5 +29,5 @@ GitHub Releasesでは.fb2k-componentを直接アップロードします。
 GitHubが自動生成するSource code (zip)/(tar.gz)は、
 配布用コンポーネントではありません。
 Release本文で
-「一般利用者はfoo_r128_normalizer_v1.5.3.fb2k-componentをダウンロード」
+「一般利用者はfoo_r128_normalizer_v1.5.4.fb2k-componentをダウンロード」
 と明記してください。

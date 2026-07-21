@@ -1,10 +1,10 @@
 ﻿作成成功
 元DLL: C:\foobar2000-dev\SDK-2025-03-07\foobar2000\foo_r128_normalizer\x64\Release\foo_r128_normalizer.dll
-DLLバージョン検証: 1.5.3
+DLLバージョン検証: 1.5.4
 DLL形式: x64 (PE Machine 0x8664)
-DLLサイズ: 178688 bytes
-DLL SHA256: CE3B99C30C96AAC8E0D8651592387D229A8C289ED5E7105D11F9B626A0C10315
-パッケージ SHA256: 33A053DF66C08A5551DBBE270AE7100856824FE982ABFEEFF6B8147EFAE02B68
+DLLサイズ: 179712 bytes
+DLL SHA256: C3804D035191BB833615C27EB113C3DB7A5808CDFF6FB6989D59EA291C0AC076
+パッケージ SHA256: C2B19405AFB7266B4C1D0FBD89F7094A873B16CC5EA61D1DCB826AF6EDD94CE9
 
 必須アーカイブ内容:
   foo_r128_normalizer.dll
@@ -20,7 +20,7 @@ SDKから同梱したライセンス・著作権通知:
   C:\foobar2000-dev\SDK-2025-03-07\libPPUI\libPPUI-license.txt
 
 作成場所:
-C:\Users\NEC\OneDrive\デスクトップ\foo_r128_normalizer_v1.5.3_defaults_confirmation_v2\foo_r128_normalizer_v1.5.3.fb2k-component
-C:\Users\NEC\OneDrive\デスクトップ\foo_r128_normalizer_v1.5.3_defaults_confirmation_v2\SHA256SUMS.txt
-C:\Users\NEC\OneDrive\デスクトップ\foo_r128_normalizer_v1.5.3.fb2k-component
+C:\Users\NEC\OneDrive\デスクトップ\foo_r128_normalizer_v1.5.4_release_docs_fixed\foo_r128_normalizer_v1.5.4.fb2k-component
+C:\Users\NEC\OneDrive\デスクトップ\foo_r128_normalizer_v1.5.4_release_docs_fixed\SHA256SUMS.txt
+C:\Users\NEC\OneDrive\デスクトップ\foo_r128_normalizer_v1.5.4.fb2k-component
 C:\Users\NEC\OneDrive\デスクトップ\SHA256SUMS.txt

@@ -8,13 +8,13 @@ foobar2000 2.x（Windows x64）向けの、R128ベース・リアルタイム音
 
 GitHub Releasesから、次のファイルをダウンロードしてください。
 
-`foo_r128_normalizer_v1.5.3.fb2k-component`
+`foo_r128_normalizer_v1.5.4.fb2k-component`
 
 一般利用では、Visual Studioやfoobar2000 SDKは必要ありません。
 
 ## インストール
 
-1. `foo_r128_normalizer_v1.5.3.fb2k-component`をダウンロードします。
+1. `foo_r128_normalizer_v1.5.4.fb2k-component`をダウンロードします。
 2. ファイルを開き、foobar2000の確認画面に従ってインストールします。
 3. foobar2000を再起動します。
 4. DSP Managerで「R128 音量ノーマライザー」を使用中のDSPへ追加します。
@@ -121,3 +121,7 @@ Author: Maximum
 
 本実装は `EBU R128 Normalizer by mudlord` の先行概念を参考にしつつ、
 独立して実装されたものです。詳細は `THIRD-PARTY-NOTICES.txt` を参照してください。
+
+- 処理負荷をリアルタイム監視し、要調整相当が続くと自動安全補正
+- 現在の処理状態を「正常／要調整／自動調整中／調整上限」で表示
+- 安全な状態が3秒続くと補正をゆっくり解除して正常へ復帰

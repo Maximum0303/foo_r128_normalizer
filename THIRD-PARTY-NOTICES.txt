@@ -1,4 +1,4 @@
-R128 リアルタイム音量ノーマライザー v1.5.3
+R128 リアルタイム音量ノーマライザー v1.5.4
 THIRD-PARTY NOTICES / 第三者クレジット
 
 1. EBU R128 Normalizer by mudlord

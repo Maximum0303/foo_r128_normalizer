@@ -27,9 +27,12 @@ constexpr double kModernCompressorKneeDb = 6.0;
 constexpr double kModernCompressorAttackSeconds = 0.020;
 constexpr double kModernCompressorReleaseSeconds = 0.200;
 constexpr unsigned kModernClipperOversampleFactor = 4;
-constexpr double kAutoSafetyMaximumReductionDb = 3.0;
-constexpr double kAutoSafetyAttackSeconds = 0.350;
-constexpr double kAutoSafetyReleaseSeconds = 3.000;
+constexpr double kAutoSafetyMaximumReductionDb = 6.0;
+constexpr double kAutoSafetyAttackSeconds = 0.250;
+constexpr double kAutoSafetyReleaseSeconds = 4.000;
+constexpr double kAutoSafetyTriggerSeconds = 0.750;
+constexpr double kAutoSafetySafeHoldSeconds = 3.000;
+constexpr double kAutoSafetyLimitHoldSeconds = 0.750;
 constexpr double kRiskStrongHoldSeconds = 0.400;
 constexpr double kRiskExcessiveHoldSeconds = 0.750;
 constexpr double kAdaptiveStrengthResponseSeconds = 2.000;
@@ -138,6 +141,7 @@ std::atomic<double> g_diagnostic_track_max_limiter_reduction_db(0.0);
 std::atomic<unsigned long long> g_diagnostic_clip_event_count(0);
 std::atomic<unsigned long long> g_diagnostic_recovered_sample_count(0);
 std::atomic<int> g_diagnostic_track_evaluation_state(0);
+std::atomic<int> g_diagnostic_current_processing_state(0);
 std::atomic<unsigned> g_diagnostic_sample_rate_hz(0);
 std::atomic<double> g_diagnostic_cpu_load_percent(0.0);
 std::atomic<int> g_diagnostic_final_summary_valid(0);
@@ -487,6 +491,21 @@ const wchar_t* track_evaluation_to_text(int state) {
     case 2:
         return L"強め";
     case 3:
+        return L"要調整";
+    default:
+        return L"未測定";
+    }
+}
+
+const wchar_t* current_processing_state_to_text(int state) {
+    switch (state) {
+    case 1:
+        return L"正常";
+    case 2:
+        return L"自動調整中";
+    case 3:
+        return L"調整上限";
+    case 4:
         return L"要調整";
     default:
         return L"未測定";
@@ -1376,6 +1395,10 @@ std::wstring build_diagnostic_report() {
         g_diagnostic_track_evaluation_state.load(
             std::memory_order_relaxed
         );
+    const int current_processing_state =
+        g_diagnostic_current_processing_state.load(
+            std::memory_order_relaxed
+        );
     const unsigned sample_rate_hz =
         g_diagnostic_sample_rate_hz.load(
             std::memory_order_relaxed
@@ -1569,8 +1592,9 @@ std::wstring build_diagnostic_report() {
         L"Integrated（出力）: %s\r\n"
         L"目標との差: %s\r\n"
         L"LRA推定: %s\r\n"
-        L"処理状態: %s\r\n"
-        L"自動セーフティ: %.2f dB\r\n"
+        L"追加処理状態: %s\r\n"
+        L"自動安全補正ゲイン: %.2f dB\r\n"
+        L"現在の処理状態: %s\r\n"
         L"現在のノーマライズゲイン: %+.2f dB\r\n"
         L"適用中の総ゲイン: %+.2f dB\r\n"
         L"コンプレッサー減衰: %.2f dB\r\n"
@@ -1631,6 +1655,9 @@ std::wstring build_diagnostic_report() {
         lra.c_str(),
         processing_risk_to_text(processing_risk_state),
         safety_reduction_db,
+        stream_active
+            ? current_processing_state_to_text(current_processing_state)
+            : L"待機中",
         normalization_gain_db,
         applied_gain_db,
         compressor_reduction_db,
@@ -1798,6 +1825,10 @@ void refresh_diagnostic_controls(HWND wnd) {
         g_diagnostic_track_evaluation_state.load(
             std::memory_order_relaxed
         );
+    const int current_processing_state =
+        g_diagnostic_current_processing_state.load(
+            std::memory_order_relaxed
+        );
     const unsigned sample_rate_hz =
         g_diagnostic_sample_rate_hz.load(
             std::memory_order_relaxed
@@ -1915,9 +1946,8 @@ void refresh_diagnostic_controls(HWND wnd) {
     const unsigned long long displayed_clip_events = stream_active
         ? clip_event_count
         : final_clip_event_count;
-    const int displayed_evaluation = stream_active
-        ? track_evaluation_state
-        : final_evaluation_state;
+    const int displayed_current_processing_state =
+        stream_active ? current_processing_state : 0;
     const unsigned displayed_sample_rate = stream_active
         ? sample_rate_hz
         : final_sample_rate_hz;
@@ -1945,7 +1975,11 @@ void refresh_diagnostic_controls(HWND wnd) {
     set_control_text(
         wnd,
         IDC_DIAG_PROCESSING_EVALUATION,
-        track_evaluation_to_text(displayed_evaluation)
+        stream_active
+            ? current_processing_state_to_text(
+                displayed_current_processing_state
+            )
+            : L"待機中"
     );
     if (displayed_sample_rate > 0) {
         swprintf_s(text, L"%u Hz", displayed_sample_rate);
@@ -2154,12 +2188,12 @@ void refresh_diagnostic_controls(HWND wnd) {
         );
     }
 
-    if (modern_boost_enabled && std::isfinite(safety_reduction_db)) {
+    if (stream_active && std::isfinite(safety_reduction_db)) {
         swprintf_s(text, L"%.2f dB", safety_reduction_db);
         set_control_text(wnd, IDC_DIAG_SAFETY_REDUCTION, text);
     }
     else {
-        set_control_text(wnd, IDC_DIAG_SAFETY_REDUCTION, L"無効");
+        set_control_text(wnd, IDC_DIAG_SAFETY_REDUCTION, L"待機中");
     }
 
     if (std::isfinite(applied_gain_db)) {
@@ -2367,9 +2401,9 @@ constexpr glossary_entry kGlossaryEntries[] = {
     },
     {
         L"自動セーフティ",
-        L"処理が強くなりすぎたとき、追加で最大3 dBまで"
+        L"処理が強くなりすぎたとき、全プリセットで最大6 dBまで"
         L"全体を安全側へ下げる機能です。\r\n\r\n"
-        L"診断の「安全補正ゲイン」に現在の減衰量が表示されます。"
+        L"診断の「自動安全補正ゲイン」に現在の減衰量が表示されます。"
     },
     {
         L"モダンブースト",
@@ -2659,9 +2693,9 @@ constexpr context_help_entry kContextHelpEntries[] = {
     },
     {
         IDC_DIAG_SAFETY_REDUCTION,
-        L"安全補正ゲイン",
+        L"自動安全補正ゲイン",
         L"処理が強くなりすぎた際に追加された安全減衰量です。"
-        L"最大3 dBまで動作します。"
+        L"全プリセットで最大6 dBまで自動調整します。"
     },
     {
         IDC_DIAG_GAIN,
@@ -2752,9 +2786,9 @@ constexpr context_help_entry kContextHelpEntries[] = {
     },
     {
         IDC_DIAG_PROCESSING_EVALUATION,
-        L"処理総合評価",
-        L"最大TP、最大クリップ、最大リミッター、"
-        L"0 dBTP超過などから「安全／強め／要調整」を表示します。"
+        L"現在の処理状態",
+        L"リアルタイム監視の状態を「正常／要調整／自動調整中／"
+        L"調整上限」で表示します。安全な状態が続くと正常へ戻ります。"
     },
     {
         IDC_COMPARE_LOUDNESS_MATCH,
@@ -2814,7 +2848,7 @@ constexpr label_help_link kLabelHelpLinks[] = {
     { L"ラウドネスレンジ（LRA）：", IDC_DIAG_LRA },
     { L"適用中の総ゲイン：", IDC_DIAG_GAIN },
     { L"追加処理の状態：", IDC_DIAG_PROCESSING_RISK },
-    { L"安全補正ゲイン：", IDC_DIAG_SAFETY_REDUCTION },
+    { L"自動安全補正ゲイン：", IDC_DIAG_SAFETY_REDUCTION },
     { L"コンプレッサー減衰量：", IDC_DIAG_COMPRESSOR_REDUCTION },
     { L"ソフトクリッパー減衰量：", IDC_DIAG_CLIPPER_REDUCTION },
     { L"True Peakリミッター減衰量：", IDC_DIAG_LIMITER_REDUCTION },
@@ -2825,7 +2859,7 @@ constexpr label_help_link kLabelHelpLinks[] = {
     { L"チャンネル構成：", IDC_DIAG_CHANNEL_LAYOUT },
     { L"CPU負荷：", IDC_DIAG_CPU_LOAD },
     { L"0 dBTP超過イベント：", IDC_DIAG_CLIP_EVENT_COUNT },
-    { L"処理総合評価：", IDC_DIAG_PROCESSING_EVALUATION },
+    { L"現在の処理状態：", IDC_DIAG_PROCESSING_EVALUATION },
     { L"最大True Peak：", IDC_DIAG_MAX_TRUE_PEAK },
     { L"最大コンプレッサー減衰量：", IDC_DIAG_MAX_COMPRESSOR_REDUCTION },
     { L"最大ソフトクリッパー減衰量：", IDC_DIAG_MAX_CLIPPER_REDUCTION },
@@ -4391,7 +4425,7 @@ public:
 
             update_auto_safety(
                 frame_clipper_reduction_db,
-                false
+                audition_bypass
             );
             update_processing_metrics();
         }
@@ -5234,27 +5268,21 @@ private:
         double clipper_reduction_db,
         bool audition_bypass
     ) {
-        if (!m_settings.enable_modern_boost ||
-            m_sample_rate == 0 ||
-            audition_bypass) {
-            m_processing_risk_state = 0;
-            m_strong_processing_seconds = 0.0;
-            m_excessive_processing_seconds = 0.0;
-
-            if (!m_settings.enable_modern_boost) {
-                m_safety_reduction_db = 0.0;
-            }
+        if (m_sample_rate == 0 || audition_bypass) {
+            m_current_processing_state = 0;
             return;
         }
 
-        const double compressor_reduction_db = std::max(
-            0.0,
-            -m_modern_compressor_gain_db
-        );
+        const double compressor_reduction_db =
+            m_settings.enable_modern_boost
+                ? std::max(0.0, -m_modern_compressor_gain_db)
+                : 0.0;
         const double limiter_reduction_db = std::max(
             0.0,
             -m_limiter_gain_db
         );
+        const double output_true_peak_dbtp =
+            linear_to_db(m_current_output_true_peak_linear);
 
         const bool strong_now =
             compressor_reduction_db >= 3.0 ||
@@ -5262,9 +5290,9 @@ private:
             limiter_reduction_db >= 1.5;
 
         const bool excessive_now =
-            compressor_reduction_db >= 6.0 ||
             clipper_reduction_db >= 3.0 ||
-            limiter_reduction_db >= 3.0;
+            limiter_reduction_db >= 3.0 ||
+            output_true_peak_dbtp > 0.01;
 
         const double frame_seconds =
             1.0 / static_cast<double>(m_sample_rate);
@@ -5281,38 +5309,77 @@ private:
 
         if (excessive_now) {
             m_excessive_processing_seconds += frame_seconds;
+            m_auto_control_safe_seconds = 0.0;
         }
         else {
             m_excessive_processing_seconds = std::max(
                 0.0,
                 m_excessive_processing_seconds - 2.0 * frame_seconds
             );
+
+            if (strong_now) {
+                m_auto_control_safe_seconds = 0.0;
+            }
+            else {
+                m_auto_control_safe_seconds += frame_seconds;
+            }
         }
 
-        if (m_excessive_processing_seconds >=
-            kRiskExcessiveHoldSeconds) {
-            m_processing_risk_state = 3;
-        }
-        else if (m_strong_processing_seconds >=
-            kRiskStrongHoldSeconds) {
-            m_processing_risk_state = 2;
+        if (m_settings.enable_modern_boost) {
+            if (m_excessive_processing_seconds >= kRiskExcessiveHoldSeconds) {
+                m_processing_risk_state = 3;
+            }
+            else if (m_strong_processing_seconds >= kRiskStrongHoldSeconds) {
+                m_processing_risk_state = 2;
+            }
+            else {
+                m_processing_risk_state = 1;
+            }
         }
         else {
-            m_processing_risk_state = 1;
+            m_processing_risk_state = 0;
         }
 
-        const double processing_load = std::max({
-            compressor_reduction_db / 6.0,
-            clipper_reduction_db / 3.0,
-            limiter_reduction_db / 3.0
-        });
+        if (!m_auto_control_engaged &&
+            m_excessive_processing_seconds >= kAutoSafetyTriggerSeconds) {
+            m_auto_control_engaged = true;
+            m_auto_control_safe_seconds = 0.0;
+        }
 
         double target_safety_db = 0.0;
-        if (processing_load > 1.0) {
-            target_safety_db = -std::min(
-                kAutoSafetyMaximumReductionDb,
-                0.5 + 2.0 * (processing_load - 1.0)
-            );
+
+        if (m_auto_control_engaged) {
+            if (strong_now || excessive_now) {
+                double required_reduction_db = 0.0;
+                required_reduction_db = std::max(
+                    required_reduction_db,
+                    limiter_reduction_db - 1.25
+                );
+                required_reduction_db = std::max(
+                    required_reduction_db,
+                    clipper_reduction_db - 1.25
+                );
+
+                if (output_true_peak_dbtp > -0.10) {
+                    required_reduction_db = std::max(
+                        required_reduction_db,
+                        output_true_peak_dbtp + 0.10
+                    );
+                }
+
+                const double requested_reduction_db = clamp_value(
+                    std::max(0.50, required_reduction_db + 0.25),
+                    0.0,
+                    kAutoSafetyMaximumReductionDb
+                );
+                target_safety_db = std::min(
+                    m_safety_reduction_db,
+                    -requested_reduction_db
+                );
+            }
+            else if (m_auto_control_safe_seconds < kAutoSafetySafeHoldSeconds) {
+                target_safety_db = m_safety_reduction_db;
+            }
         }
 
         const bool increasing_protection =
@@ -5320,27 +5387,51 @@ private:
         const double time_seconds = increasing_protection
             ? kAutoSafetyAttackSeconds
             : kAutoSafetyReleaseSeconds;
-
         const double coefficient = std::exp(
             -1.0 /
-            (
-                time_seconds *
-                static_cast<double>(m_sample_rate)
-            )
+            (time_seconds * static_cast<double>(m_sample_rate))
         );
 
         m_safety_reduction_db =
             target_safety_db +
-            (
-                m_safety_reduction_db -
-                target_safety_db
-            ) * coefficient;
-
+            (m_safety_reduction_db - target_safety_db) * coefficient;
         m_safety_reduction_db = clamp_value(
             m_safety_reduction_db,
             -kAutoSafetyMaximumReductionDb,
             0.0
         );
+
+        const bool at_adjustment_limit =
+            m_safety_reduction_db <= -kAutoSafetyMaximumReductionDb + 0.02;
+
+        if (m_auto_control_engaged && at_adjustment_limit && excessive_now) {
+            m_auto_control_limit_seconds += frame_seconds;
+        }
+        else {
+            m_auto_control_limit_seconds = std::max(
+                0.0,
+                m_auto_control_limit_seconds - 2.0 * frame_seconds
+            );
+        }
+
+        if (!m_auto_control_engaged) {
+            m_current_processing_state = excessive_now ? 4 : 1;
+        }
+        else if (m_auto_control_limit_seconds >= kAutoSafetyLimitHoldSeconds) {
+            m_current_processing_state = 3;
+        }
+        else if (target_safety_db >= -0.001 &&
+                 m_safety_reduction_db > -0.02 &&
+                 m_auto_control_safe_seconds >= kAutoSafetySafeHoldSeconds) {
+            m_auto_control_engaged = false;
+            m_auto_control_safe_seconds = 0.0;
+            m_auto_control_limit_seconds = 0.0;
+            m_safety_reduction_db = 0.0;
+            m_current_processing_state = 1;
+        }
+        else {
+            m_current_processing_state = 2;
+        }
     }
 
     double estimate_compare_match_gain_db() const {
@@ -5605,7 +5696,7 @@ private:
                     target_limiter_gain_db = std::min(
                         0.0,
                         required_total_gain_db -
-                            m_current_gain_db
+                            (m_current_gain_db + m_safety_reduction_db)
                     );
                 }
             }
@@ -5630,7 +5721,9 @@ private:
             }
             else {
                 output_gain_db =
-                    m_current_gain_db + m_limiter_gain_db;
+                    m_current_gain_db +
+                    m_safety_reduction_db +
+                    m_limiter_gain_db;
 
                 if (std::isfinite(required_total_gain_db)) {
                     output_gain_db = std::min(
@@ -5693,6 +5786,7 @@ private:
         }
 
         if (!bypass_frame && transition_gain >= 0.999) {
+            m_current_output_true_peak_linear = output_frame_true_peak;
             m_track_max_output_true_peak_linear = std::max(
                 m_track_max_output_true_peak_linear,
                 output_frame_true_peak
@@ -5712,6 +5806,7 @@ private:
             measure_output_frame(m_output_measure_frame.data());
         }
         else {
+            m_current_output_true_peak_linear = 0.0;
             m_clip_event_active = false;
         }
 
@@ -6640,9 +6735,11 @@ private:
             std::memory_order_relaxed
         );
         g_diagnostic_safety_reduction_db.store(
-            m_settings.enable_modern_boost
-                ? m_safety_reduction_db
-                : 0.0,
+            m_safety_reduction_db,
+            std::memory_order_relaxed
+        );
+        g_diagnostic_current_processing_state.store(
+            m_current_processing_state,
             std::memory_order_relaxed
         );
         g_diagnostic_original_compare_state.store(
@@ -6929,6 +7026,10 @@ private:
             0,
             std::memory_order_relaxed
         );
+        g_diagnostic_current_processing_state.store(
+            0,
+            std::memory_order_relaxed
+        );
         g_diagnostic_cpu_load_percent.store(
             0.0,
             std::memory_order_relaxed
@@ -7046,8 +7147,13 @@ private:
         m_three_band_high_gain_db = 0.0;
         m_modern_clipper_reduction_db = 0.0;
         m_safety_reduction_db = 0.0;
+        m_current_output_true_peak_linear = 0.0;
         m_strong_processing_seconds = 0.0;
         m_excessive_processing_seconds = 0.0;
+        m_auto_control_safe_seconds = 0.0;
+        m_auto_control_limit_seconds = 0.0;
+        m_auto_control_engaged = false;
+        m_current_processing_state = 0;
         m_processing_risk_state =
             m_settings.enable_modern_boost ? 1 : 0;
         m_effective_modern_strength_percent =
@@ -7211,6 +7317,10 @@ private:
             0,
             std::memory_order_relaxed
         );
+        g_diagnostic_current_processing_state.store(
+            0,
+            std::memory_order_relaxed
+        );
         g_diagnostic_sample_rate_hz.store(
             m_sample_rate,
             std::memory_order_relaxed
@@ -7340,6 +7450,7 @@ private:
     double m_modern_clipper_reduction_db = 0.0;
     double m_safety_reduction_db = 0.0;
     double m_effective_modern_strength_percent = 50.0;
+    double m_current_output_true_peak_linear = 0.0;
     double m_track_max_output_true_peak_linear = 0.0;
     double m_track_max_compressor_reduction_db = 0.0;
     double m_track_max_clipper_reduction_db = 0.0;
@@ -7358,6 +7469,10 @@ private:
     t_size m_compare_fade_in_remaining = 0;
     double m_strong_processing_seconds = 0.0;
     double m_excessive_processing_seconds = 0.0;
+    double m_auto_control_safe_seconds = 0.0;
+    double m_auto_control_limit_seconds = 0.0;
+    bool m_auto_control_engaged = false;
+    int m_current_processing_state = 0;
     int m_processing_risk_state = 0;
     int m_normalization_state = 0;
 
