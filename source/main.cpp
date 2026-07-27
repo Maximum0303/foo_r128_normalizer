@@ -2,13 +2,22 @@
 
 DECLARE_COMPONENT_VERSION(
     "R128 \xE3\x83\xAA\xE3\x82\xA2\xE3\x83\xAB\xE3\x82\xBF\xE3\x82\xA4\xE3\x83\xA0\xE9\x9F\xB3\xE9\x87\x8F\xE3\x83\x8E\xE3\x83\xBC\xE3\x83\x9E\xE3\x83\xA9\xE3\x82\xA4\xE3\x82\xB6\xE3\x83\xBC",
-    "1.6.0",
+    "1.6.1",
     "R128-based real-time loudness normalizer for foobar2000.\n"
     "foobar2000用のR128ベース・リアルタイム音量ノーマライザーです。\n"
     "\n"
     "Author: Maximum\n"
     "Copyright (c) 2026 Maximum\n"
     "License: MIT License\n"
+    "\n"
+    "v1.6.1 keeps the settings window accessible at 200-250% scaling,\n"
+    "improves live theme switching and tooltip scaling at high DPI,\n"
+    "and completes the English text for the processing-strength range.\n"
+    "\n"
+    "v1.6.1では、200～250%表示時の設定画面をスクロール対応し、\n"
+    "画面を開いたままテーマを切り替えた際のツールチップ配色追従と、\n"
+    "高DPIでのツールチップ幅を改善しました。\n"
+    "処理強度の範囲表示に残っていた英語化漏れも修正しました。\n"
     "\n"
     "v1.6.0 adds Automatic / Japanese / English display-language selection.\n"
     "The settings UI, diagnostics, help, glossary, messages, tooltips,\n"

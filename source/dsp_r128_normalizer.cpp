@@ -989,6 +989,7 @@ constexpr localized_control_text kPrimaryUiText[] = {
     { IDC_ADV_INFO_2, L"曲の音量とLRAに応じて、モダン処理の強度を自動調整します。", L"Adapts Modern Processing strength to loudness and LRA." },
     { IDC_ADV_INFO_3, L"低域・中域・高域に分け、それぞれの処理量を個別に制御します。", L"Controls low, mid, and high bands independently." },
     { IDC_LABEL_MODERN_STRENGTH, L"モダン処理強度／アダプティブ上限：", L"Modern strength / adaptive maximum:" },
+    { IDC_UNIT_MODERN_STRENGTH, L"%（0～100）", L"% (0-100)" },
 
     { IDC_DIAG_LEFT_HEADER, L"現在値・処理状態（上から下へ）", L"Current values and processing state" },
     { IDC_DIAG_RIGHT_HEADER, L"ピーク・環境・最大値（上から下へ）", L"Peaks, environment, and maxima" },
@@ -1127,7 +1128,161 @@ void select_config_tab_for_control(HWND wnd, int control_id) {
     update_config_tab_page(wnd, page);
 }
 
-void fit_dialog_to_monitor_work_area(HWND wnd) {
+struct dialog_scroll_state {
+    bool initialized = false;
+    int position_x = 0;
+    int position_y = 0;
+    int content_width = 0;
+    int content_height = 0;
+    int full_window_width = 0;
+    int full_window_height = 0;
+    UINT dpi = 96;
+};
+
+UINT dialog_dpi_for_window(HWND wnd) {
+    using get_dpi_for_window_fn = UINT(WINAPI*)(HWND);
+
+    const HMODULE user32 = GetModuleHandleW(L"user32.dll");
+    if (user32 != nullptr) {
+        const auto get_dpi_for_window =
+            reinterpret_cast<get_dpi_for_window_fn>(
+                GetProcAddress(user32, "GetDpiForWindow")
+            );
+
+        if (get_dpi_for_window != nullptr) {
+            const UINT dpi = get_dpi_for_window(wnd);
+            if (dpi != 0) {
+                return dpi;
+            }
+        }
+    }
+
+    return 96;
+}
+
+int dialog_system_metric_for_dpi(int metric, UINT dpi) {
+    using get_system_metrics_for_dpi_fn = int(WINAPI*)(int, UINT);
+
+    const HMODULE user32 = GetModuleHandleW(L"user32.dll");
+    if (user32 != nullptr) {
+        const auto get_system_metrics_for_dpi =
+            reinterpret_cast<get_system_metrics_for_dpi_fn>(
+                GetProcAddress(user32, "GetSystemMetricsForDpi")
+            );
+
+        if (get_system_metrics_for_dpi != nullptr) {
+            return get_system_metrics_for_dpi(
+                metric,
+                dpi == 0 ? 96 : dpi
+            );
+        }
+    }
+
+    return GetSystemMetrics(metric);
+}
+
+void offset_dialog_children(HWND wnd, int offset_x, int offset_y) {
+    if (offset_x == 0 && offset_y == 0) {
+        return;
+    }
+
+    for (HWND child = GetWindow(wnd, GW_CHILD);
+         child != nullptr;
+         child = GetWindow(child, GW_HWNDNEXT)) {
+        RECT child_rect = {};
+        if (!GetWindowRect(child, &child_rect)) {
+            continue;
+        }
+
+        MapWindowPoints(
+            nullptr,
+            wnd,
+            reinterpret_cast<POINT*>(&child_rect),
+            2
+        );
+
+        SetWindowPos(
+            child,
+            nullptr,
+            child_rect.left + offset_x,
+            child_rect.top + offset_y,
+            0,
+            0,
+            SWP_NOZORDER | SWP_NOSIZE | SWP_NOACTIVATE
+        );
+    }
+}
+
+void reset_dialog_scroll_position(
+    HWND wnd,
+    dialog_scroll_state& state
+) {
+    offset_dialog_children(
+        wnd,
+        state.position_x,
+        state.position_y
+    );
+    state.position_x = 0;
+    state.position_y = 0;
+}
+
+void update_dialog_scroll_dpi(
+    dialog_scroll_state& state,
+    UINT new_dpi
+) {
+    if (!state.initialized || new_dpi == 0 || new_dpi == state.dpi) {
+        return;
+    }
+
+    const int old_dpi = static_cast<int>(
+        state.dpi == 0 ? 96 : state.dpi
+    );
+    const int target_dpi = static_cast<int>(new_dpi);
+
+    state.content_width = MulDiv(
+        state.content_width,
+        target_dpi,
+        old_dpi
+    );
+    state.content_height = MulDiv(
+        state.content_height,
+        target_dpi,
+        old_dpi
+    );
+    state.full_window_width = MulDiv(
+        state.full_window_width,
+        target_dpi,
+        old_dpi
+    );
+    state.full_window_height = MulDiv(
+        state.full_window_height,
+        target_dpi,
+        old_dpi
+    );
+    state.dpi = new_dpi;
+}
+
+void configure_dialog_scroll_bar(
+    HWND wnd,
+    int bar,
+    int content_extent,
+    int page_extent,
+    int position
+) {
+    SCROLLINFO info = {};
+    info.cbSize = sizeof(info);
+    info.fMask = SIF_RANGE | SIF_PAGE | SIF_POS;
+    info.nMin = 0;
+    info.nMax = std::max(content_extent - 1, 0);
+    info.nPage = static_cast<UINT>(std::max(page_extent, 0));
+    info.nPos = std::max(position, 0);
+    SetScrollInfo(wnd, bar, &info, TRUE);
+}
+
+void fit_dialog_to_monitor_work_area(
+    HWND wnd,
+    dialog_scroll_state* scroll_state
+) {
     RECT window_rect = {};
 
     if (!GetWindowRect(wnd, &window_rect)) {
@@ -1146,33 +1301,120 @@ void fit_dialog_to_monitor_work_area(HWND wnd) {
         return;
     }
 
-    const LONG width =
+    const LONG current_width =
         window_rect.right - window_rect.left;
-    const LONG height =
+    const LONG current_height =
         window_rect.bottom - window_rect.top;
     const RECT& work = monitor_info.rcWork;
     const LONG work_width = work.right - work.left;
     const LONG work_height = work.bottom - work.top;
 
+    if (scroll_state != nullptr && !scroll_state->initialized) {
+        RECT client_rect = {};
+        GetClientRect(wnd, &client_rect);
+
+        scroll_state->initialized = true;
+        scroll_state->content_width =
+            client_rect.right - client_rect.left;
+        scroll_state->content_height =
+            client_rect.bottom - client_rect.top;
+        scroll_state->full_window_width =
+            static_cast<int>(current_width);
+        scroll_state->full_window_height =
+            static_cast<int>(current_height);
+        scroll_state->dpi = dialog_dpi_for_window(wnd);
+    }
+
+    LONG target_width = current_width;
+    LONG target_height = current_height;
+    bool horizontal_scroll = false;
+    bool vertical_scroll = false;
+
+    if (scroll_state != nullptr) {
+        reset_dialog_scroll_position(wnd, *scroll_state);
+
+        horizontal_scroll =
+            scroll_state->full_window_width > work_width;
+        vertical_scroll =
+            scroll_state->full_window_height > work_height;
+
+        const int scroll_width = dialog_system_metric_for_dpi(
+            SM_CXVSCROLL,
+            scroll_state->dpi
+        );
+        const int scroll_height = dialog_system_metric_for_dpi(
+            SM_CYHSCROLL,
+            scroll_state->dpi
+        );
+
+        // Adding one scrollbar reduces the other client dimension.
+        // Reserve its non-client space when the monitor has room, then
+        // re-evaluate the perpendicular scrollbar.
+        for (int iteration = 0; iteration < 2; ++iteration) {
+            const LONG desired_width =
+                scroll_state->full_window_width +
+                (vertical_scroll ? scroll_width : 0);
+            const LONG desired_height =
+                scroll_state->full_window_height +
+                (horizontal_scroll ? scroll_height : 0);
+
+            horizontal_scroll =
+                horizontal_scroll || desired_width > work_width;
+            vertical_scroll =
+                vertical_scroll || desired_height > work_height;
+        }
+
+        const LONG desired_width =
+            scroll_state->full_window_width +
+            (vertical_scroll ? scroll_width : 0);
+        const LONG desired_height =
+            scroll_state->full_window_height +
+            (horizontal_scroll ? scroll_height : 0);
+
+        target_width = std::min(desired_width, work_width);
+        target_height = std::min(desired_height, work_height);
+
+        LONG_PTR style = GetWindowLongPtrW(wnd, GWL_STYLE);
+        const LONG_PTR original_style = style;
+
+        if (horizontal_scroll) {
+            style |= WS_HSCROLL;
+        }
+        else {
+            style &= ~static_cast<LONG_PTR>(WS_HSCROLL);
+        }
+
+        if (vertical_scroll) {
+            style |= WS_VSCROLL;
+        }
+        else {
+            style &= ~static_cast<LONG_PTR>(WS_VSCROLL);
+        }
+
+        if (style != original_style) {
+            SetWindowLongPtrW(wnd, GWL_STYLE, style);
+        }
+    }
+
     LONG x = window_rect.left;
     LONG y = window_rect.top;
 
-    if (width <= work_width) {
+    if (target_width <= work_width) {
         x = clamp_value<LONG>(
             x,
             work.left,
-            work.right - width
+            work.right - target_width
         );
     }
     else {
         x = work.left;
     }
 
-    if (height <= work_height) {
+    if (target_height <= work_height) {
         y = clamp_value<LONG>(
             y,
             work.top,
-            work.bottom - height
+            work.bottom - target_height
         );
     }
     else {
@@ -1184,10 +1426,143 @@ void fit_dialog_to_monitor_work_area(HWND wnd) {
         nullptr,
         x,
         y,
-        0,
-        0,
-        SWP_NOZORDER | SWP_NOSIZE | SWP_NOACTIVATE
+        target_width,
+        target_height,
+        SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED
     );
+
+    if (scroll_state != nullptr) {
+        RECT client_rect = {};
+        GetClientRect(wnd, &client_rect);
+
+        const int client_width =
+            client_rect.right - client_rect.left;
+        const int client_height =
+            client_rect.bottom - client_rect.top;
+
+        configure_dialog_scroll_bar(
+            wnd,
+            SB_HORZ,
+            scroll_state->content_width,
+            client_width,
+            scroll_state->position_x
+        );
+        configure_dialog_scroll_bar(
+            wnd,
+            SB_VERT,
+            scroll_state->content_height,
+            client_height,
+            scroll_state->position_y
+        );
+
+        ShowScrollBar(
+            wnd,
+            SB_HORZ,
+            horizontal_scroll ? TRUE : FALSE
+        );
+        ShowScrollBar(
+            wnd,
+            SB_VERT,
+            vertical_scroll ? TRUE : FALSE
+        );
+    }
+}
+
+bool scroll_config_dialog(
+    HWND wnd,
+    dialog_scroll_state& state,
+    int bar,
+    UINT request
+) {
+    SCROLLINFO info = {};
+    info.cbSize = sizeof(info);
+    info.fMask =
+        SIF_ALL;
+
+    if (!GetScrollInfo(wnd, bar, &info)) {
+        return false;
+    }
+
+    const int old_position = info.nPos;
+    int new_position = old_position;
+    const int line_step = std::max(
+        static_cast<int>(info.nPage) / 12,
+        16
+    );
+    const int page_step = std::max(
+        static_cast<int>(info.nPage) - line_step,
+        line_step
+    );
+
+    switch (request) {
+    case SB_LINEUP:
+        new_position -= line_step;
+        break;
+    case SB_LINEDOWN:
+        new_position += line_step;
+        break;
+    case SB_PAGEUP:
+        new_position -= page_step;
+        break;
+    case SB_PAGEDOWN:
+        new_position += page_step;
+        break;
+    case SB_THUMBPOSITION:
+    case SB_THUMBTRACK:
+        new_position = info.nTrackPos;
+        break;
+    case SB_TOP:
+        new_position = info.nMin;
+        break;
+    case SB_BOTTOM:
+        new_position = info.nMax;
+        break;
+    default:
+        return false;
+    }
+
+    const int maximum_position = std::max(
+        info.nMax - static_cast<int>(info.nPage) + 1,
+        info.nMin
+    );
+    new_position = clamp_value(
+        new_position,
+        info.nMin,
+        maximum_position
+    );
+
+    if (new_position == old_position) {
+        return true;
+    }
+
+    info.fMask = SIF_POS;
+    info.nPos = new_position;
+    SetScrollInfo(wnd, bar, &info, TRUE);
+
+    if (bar == SB_HORZ) {
+        offset_dialog_children(
+            wnd,
+            old_position - new_position,
+            0
+        );
+        state.position_x = new_position;
+    }
+    else {
+        offset_dialog_children(
+            wnd,
+            0,
+            old_position - new_position
+        );
+        state.position_y = new_position;
+    }
+
+    RedrawWindow(
+        wnd,
+        nullptr,
+        nullptr,
+        RDW_INVALIDATE | RDW_ERASE | RDW_ALLCHILDREN
+    );
+    return true;
 }
 
 void set_float_text(HWND wnd, int control_id, float value) {
@@ -1829,7 +2204,7 @@ std::wstring build_diagnostic_report() {
     swprintf_s(
         report,
         ui_text(
-        L"R128 音量ノーマライザー 1.6.0\r\n"
+        L"R128 音量ノーマライザー 1.6.1\r\n"
         L"再生状態: %s\r\n"
         L"補正状態: %s\r\n"
         L"補正ゲイン固定: %s\r\n"
@@ -1885,7 +2260,7 @@ std::wstring build_diagnostic_report() {
         L"処理評価: %s\r\n"
         L"サンプルレート: %u Hz\r\n"
         L"推定CPU負荷: %.2f %%\r\n",
-        L"R128 Loudness Normalizer 1.6.0\r\n"
+        L"R128 Loudness Normalizer 1.6.1\r\n"
         L"Playback state: %s\r\n"
         L"Normalization state: %s\r\n"
         L"Gain lock: %s\r\n"
@@ -3905,7 +4280,7 @@ bool confirm_restore_defaults(HWND owner) {
 }
 
 constexpr wchar_t kLicenseCreditsText[] =
-    L"R128 リアルタイム音量ノーマライザー 1.6.0\r\n"
+    L"R128 リアルタイム音量ノーマライザー 1.6.1\r\n"
     L"\r\n"
     L"作者：Maximum\r\n"
     L"Copyright (c) 2026 Maximum\r\n"
@@ -3922,7 +4297,7 @@ constexpr wchar_t kLicenseCreditsText[] =
     L"THIRD-PARTY-NOTICES.txtをご覧ください。";
 
 constexpr wchar_t kLicenseCreditsTextEnglish[] =
-    L"R128 Real-time Loudness Normalizer 1.6.0\r\n"
+    L"R128 Real-time Loudness Normalizer 1.6.1\r\n"
     L"\r\n"
     L"Author: Maximum\r\n"
     L"Copyright (c) 2026 Maximum\r\n"
@@ -4011,6 +4386,46 @@ void add_tooltip(
     );
 }
 
+UINT dpi_for_window_or_default(HWND wnd) {
+    using get_dpi_for_window_fn = UINT(WINAPI*)(HWND);
+
+    const HMODULE user32 = GetModuleHandleW(L"user32.dll");
+    if (user32 != nullptr) {
+        const auto get_dpi_for_window =
+            reinterpret_cast<get_dpi_for_window_fn>(
+                GetProcAddress(user32, "GetDpiForWindow")
+            );
+
+        if (get_dpi_for_window != nullptr) {
+            const UINT dpi = get_dpi_for_window(wnd);
+            if (dpi != 0) {
+                return dpi;
+            }
+        }
+    }
+
+    return 96;
+}
+
+void update_tooltip_dpi(HWND tooltip, HWND dialog) {
+    if (tooltip == nullptr || dialog == nullptr) {
+        return;
+    }
+
+    const int max_width = MulDiv(
+        420,
+        static_cast<int>(dpi_for_window_or_default(dialog)),
+        96
+    );
+
+    SendMessageW(
+        tooltip,
+        TTM_SETMAXTIPWIDTH,
+        0,
+        std::max(max_width, 1)
+    );
+}
+
 HWND create_help_tooltips(HWND dialog) {
     INITCOMMONCONTROLSEX controls = {};
     controls.dwSize = sizeof(controls);
@@ -4046,7 +4461,7 @@ HWND create_help_tooltips(HWND dialog) {
         SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE
     );
 
-    SendMessageW(tooltip, TTM_SETMAXTIPWIDTH, 0, 420);
+    update_tooltip_dpi(tooltip, dialog);
     SendMessageW(tooltip, TTM_SETDELAYTIME, TTDT_INITIAL, 450);
     SendMessageW(tooltip, TTM_SETDELAYTIME, TTDT_AUTOPOP, 12000);
 
@@ -4207,7 +4622,10 @@ struct dialog_context {
     r128_settings value;
     dsp_preset_edit_callback* callback = nullptr;
     HWND tooltip = nullptr;
+    dialog_scroll_state scroll;
     fb2k::CCoreDarkModeHooks dark_mode;
+    bool tooltip_dark_mode = false;
+    bool tooltip_theme_initialized = false;
     bool updating_controls = false;
     bool has_unapplied_changes = false;
 
@@ -4218,6 +4636,57 @@ struct dialog_context {
     void* cleanup_state = nullptr;
     void (*cleanup)(dialog_context*) = nullptr;
 };
+
+void update_tooltip_theme(
+    dialog_context* context,
+    bool force
+) {
+    if (context == nullptr || context->tooltip == nullptr) {
+        return;
+    }
+
+    const bool dark_mode =
+        static_cast<bool>(context->dark_mode);
+
+    if (!force &&
+        context->tooltip_theme_initialized &&
+        context->tooltip_dark_mode == dark_mode) {
+        return;
+    }
+
+    SetWindowTheme(
+        context->tooltip,
+        dark_mode ? L"DarkMode_Explorer" : nullptr,
+        nullptr
+    );
+    RedrawWindow(
+        context->tooltip,
+        nullptr,
+        nullptr,
+        RDW_INVALIDATE | RDW_ERASE | RDW_FRAME
+    );
+
+    context->tooltip_dark_mode = dark_mode;
+    context->tooltip_theme_initialized = true;
+}
+
+void recreate_help_tooltips(
+    HWND wnd,
+    dialog_context* context
+) {
+    if (context == nullptr) {
+        return;
+    }
+
+    if (context->tooltip != nullptr) {
+        DestroyWindow(context->tooltip);
+        context->tooltip = nullptr;
+    }
+
+    context->tooltip = create_help_tooltips(wnd);
+    context->tooltip_theme_initialized = false;
+    update_tooltip_theme(context, true);
+}
 
 constexpr int kSettingEditControls[] = {
     IDC_TARGET_LUFS,
@@ -4528,20 +4997,13 @@ INT_PTR CALLBACK config_dialog_proc(HWND wnd, UINT message, WPARAM wp, LPARAM lp
 
         g_original_compare_request.store(0, std::memory_order_relaxed);
         setup_config_tabs(wnd);
-        fit_dialog_to_monitor_work_area(wnd);
+        fit_dialog_to_monitor_work_area(
+            wnd,
+            context != nullptr ? &context->scroll : nullptr
+        );
 
         if (context != nullptr) {
-            context->tooltip = create_help_tooltips(wnd);
-
-            if (context->tooltip != nullptr) {
-                SetWindowTheme(
-                    context->tooltip,
-                    context->dark_mode
-                        ? L"DarkMode_Explorer"
-                        : nullptr,
-                    nullptr
-                );
-            }
+            recreate_help_tooltips(wnd, context);
         }
         CheckDlgButton(
             wnd,
@@ -4602,6 +5064,14 @@ INT_PTR CALLBACK config_dialog_proc(HWND wnd, UINT message, WPARAM wp, LPARAM lp
         break;
 
     case WM_DPICHANGED:
+        if (context != nullptr) {
+            reset_dialog_scroll_position(wnd, context->scroll);
+            update_dialog_scroll_dpi(
+                context->scroll,
+                HIWORD(wp)
+            );
+        }
+
         if (lp != 0) {
             const auto* suggested =
                 reinterpret_cast<const RECT*>(lp);
@@ -4617,8 +5087,68 @@ INT_PTR CALLBACK config_dialog_proc(HWND wnd, UINT message, WPARAM wp, LPARAM lp
             );
         }
 
-        fit_dialog_to_monitor_work_area(wnd);
+        fit_dialog_to_monitor_work_area(
+            wnd,
+            context != nullptr ? &context->scroll : nullptr
+        );
+        if (context != nullptr && context->tooltip != nullptr) {
+            update_tooltip_dpi(context->tooltip, wnd);
+        }
         return TRUE;
+
+    case WM_HSCROLL:
+        if (context != nullptr &&
+            reinterpret_cast<HWND>(lp) == nullptr &&
+            scroll_config_dialog(
+                wnd,
+                context->scroll,
+                SB_HORZ,
+                LOWORD(wp)
+            )) {
+            return TRUE;
+        }
+        break;
+
+    case WM_VSCROLL:
+        if (context != nullptr &&
+            reinterpret_cast<HWND>(lp) == nullptr &&
+            scroll_config_dialog(
+                wnd,
+                context->scroll,
+                SB_VERT,
+                LOWORD(wp)
+            )) {
+            return TRUE;
+        }
+        break;
+
+    case WM_MOUSEWHEEL:
+        if (context != nullptr) {
+            const int wheel_delta = GET_WHEEL_DELTA_WPARAM(wp);
+            const int line_count = std::max(
+                std::abs(wheel_delta) / WHEEL_DELTA,
+                1
+            ) * 3;
+            const UINT scroll_request =
+                wheel_delta > 0 ? SB_LINEUP : SB_LINEDOWN;
+
+            for (int index = 0; index < line_count; ++index) {
+                scroll_config_dialog(
+                    wnd,
+                    context->scroll,
+                    SB_VERT,
+                    scroll_request
+                );
+            }
+            return TRUE;
+        }
+        break;
+
+    case WM_THEMECHANGED:
+    case WM_SYSCOLORCHANGE:
+    case WM_SETTINGCHANGE:
+        update_tooltip_theme(context, true);
+        break;
 
     case WM_HELP:
         if (lp != 0) {
@@ -4638,6 +5168,7 @@ INT_PTR CALLBACK config_dialog_proc(HWND wnd, UINT message, WPARAM wp, LPARAM lp
 
     case WM_TIMER:
         if (wp == kDiagnosticsTimerId) {
+            update_tooltip_theme(context, false);
             refresh_diagnostic_controls(wnd);
             return TRUE;
         }
@@ -4699,21 +5230,7 @@ INT_PTR CALLBACK config_dialog_proc(HWND wnd, UINT message, WPARAM wp, LPARAM lp
                     context != nullptr ? &context->value : nullptr,
                     false
                 );
-                if (context != nullptr) {
-                    if (context->tooltip != nullptr) {
-                        DestroyWindow(context->tooltip);
-                    }
-                    context->tooltip = create_help_tooltips(wnd);
-                    if (context->tooltip != nullptr) {
-                        SetWindowTheme(
-                            context->tooltip,
-                            context->dark_mode
-                                ? L"DarkMode_Explorer"
-                                : nullptr,
-                            nullptr
-                        );
-                    }
-                }
+                recreate_help_tooltips(wnd, context);
                 refresh_diagnostic_controls(wnd);
                 set_control_text(
                     wnd,

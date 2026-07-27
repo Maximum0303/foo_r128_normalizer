@@ -1,24 +1,22 @@
-# v1.6.0 — 日本語／English表示対応
+# v1.6.1 — 表示品質と安定性の改善
 
 ## 変更内容
 
-- 表示言語に「自動（Windows）／日本語／English」を追加
-- 設定画面を開いたまま表示言語を即時切り替え
-- 設定画面のタブ、主要項目、プリセット、操作ボタンを英語化
-- 診断の主要見出しと現在の処理状態を英語化
-- PlaybackメニューとDSP名を表示言語に合わせて切り替え
-- 言語設定をDSPプリセットとは別のコンポーネント設定として保存
-- 診断の動的表示と診断コピーを英語化
-- 項目ヘルプと全31項目の用語集を英語化
-- プリセット／各設定／診断値のツールチップを英語化
-- ライセンス、初期設定確認、入力値エラー、確認メッセージを英語化
-- 言語を即時変更した場合にツールチップも同じ言語で再生成
-- 用語集上部の案内文を含め、補助画面内の固定表示も英語化
+- 英語表示で処理強度の範囲が日本語記号のまま残る問題を修正
+- Windows表示倍率に合わせてツールチップの最大幅を調整
+- DPI変更時にツールチップ幅を再計算
+- 200～250%表示で設定画面が作業領域を超える場合、画面内へ収めて
+  必要な方向だけスクロールできるように改善
+- 設定画面を開いたままfoobar2000のテーマを変更した場合も、
+  ツールチップのライト／ダーク配色を更新
+- 100～250%表示倍率、マルチモニター、曲変更・停止・終了時の
+  品質確認項目を追加
 
 ## 互換性
 
 音声処理、設定形式v7、DSP GUID、メニューGUID、プリセット設定値、
-DLL名は変更していません。v1.5.4のリアルタイム自動制御も維持しています。
+DLL名、v1.6.0の日本語／English表示、v1.5.4のリアルタイム自動制御は
+変更していません。
 
 ## 動作環境
 
@@ -27,11 +25,13 @@ DLL名は変更していません。v1.5.4のリアルタイム自動制御も�
 
 ## English
 
-v1.6.0 adds Automatic (Windows), Japanese, and English display-language
-selection. The settings UI, diagnostics, item help, glossary, tooltips,
-messages, license information, DSP name, and Playback menu now follow the
-selected language immediately.
+v1.6.1 keeps the settings window within the monitor work area and adds
+scrolling when 200-250% display scaling would otherwise hide controls. It also
+improves tooltip sizing at high DPI, updates tooltip colors when the foobar2000
+theme changes while the settings window remains open, and fixes the
+processing-strength range text that retained Japanese punctuation in the
+English interface.
 
-Language selection is stored separately from DSP presets. Preset format v7,
-existing DSP and menu GUIDs, preset values, audio processing, and the v1.5.4
-real-time automatic safety-control behavior remain unchanged.
+Preset format v7, existing DSP and menu GUIDs, preset values, audio processing,
+v1.6.0 language support, and the v1.5.4 real-time automatic safety-control
+behavior remain unchanged.

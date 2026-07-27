@@ -1,10 +1,10 @@
-R128 Real-time Loudness Normalizer v1.6.0
+R128 Real-time Loudness Normalizer v1.6.1
 
 For foobar2000 2.x / Windows x64
 
 INSTALLATION
 
-1. Open foo_r128_normalizer_v1.6.0.fb2k-component.
+1. Open foo_r128_normalizer_v1.6.1.fb2k-component.
 2. Follow the foobar2000 installation prompt.
 3. Restart foobar2000.
 
@@ -33,7 +33,13 @@ Language selection is stored separately from DSP presets.
 
 COMPATIBILITY
 
-v1.6.0 retains preset format v7, existing DSP and menu GUIDs, preset values,
+v1.6.1 keeps the settings window within the monitor work area and enables
+scrolling when high display scaling would otherwise hide controls. It also
+improves tooltip scaling at high DPI, updates tooltip colors when the foobar2000
+theme changes while the settings window is open, and completes the English
+processing-strength range text.
+
+v1.6.1 retains preset format v7, existing DSP and menu GUIDs, preset values,
 and the v1.5.4 real-time automatic safety-control behavior.
 
 LICENSE

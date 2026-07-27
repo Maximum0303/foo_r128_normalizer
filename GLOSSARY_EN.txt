@@ -1,4 +1,4 @@
-R128 Real-time Loudness Normalizer v1.6.0
+R128 Real-time Loudness Normalizer v1.6.1
 English Glossary
 
 Current processing state
