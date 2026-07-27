@@ -108,11 +108,11 @@ try {
         -not (
             Test-BinaryContainsAscii `
                 -Path $dllPath `
-                -Text "1.6.0"
+                -Text "1.6.1"
         )
     ) {
         throw (
-            "DLL内にバージョン1.6.0がありません。" +
+            "DLL内にバージョン1.6.1がありません。" +
             "古いDLLを梱包しようとしている可能性があります。"
         )
     }
@@ -122,7 +122,7 @@ try {
     Add-Type -AssemblyName System.IO.Compression
     Add-Type -AssemblyName System.IO.Compression.FileSystem
 
-    $componentName = "foo_r128_normalizer_v1.6.0.fb2k-component"
+    $componentName = "foo_r128_normalizer_v1.6.1.fb2k-component"
     $componentPath = Join-Path $toolRoot $componentName
 
     Remove-Item $componentPath `
@@ -327,7 +327,7 @@ try {
     $logLines = New-Object System.Collections.Generic.List[string]
     $logLines.Add("作成成功")
     $logLines.Add("元DLL: $dllPath")
-    $logLines.Add("DLLバージョン検証: 1.6.0")
+    $logLines.Add("DLLバージョン検証: 1.6.1")
     $logLines.Add("DLL形式: x64 (PE Machine 0x8664)")
     $logLines.Add("DLLサイズ: $($dll.Length) bytes")
     $logLines.Add("DLL SHA256: $dllHash")
@@ -379,7 +379,7 @@ try {
         Set-Content $logPath -Encoding UTF8
 
     Write-Host ""
-    Write-Host "v1.6.0のインストール用ファイルを作成しました。" `
+    Write-Host "v1.6.1のインストール用ファイルを作成しました。" `
         -ForegroundColor Green
 
     foreach ($path in $created) {

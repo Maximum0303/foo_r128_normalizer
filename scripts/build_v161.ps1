@@ -11,7 +11,7 @@ $projectPath = Join-Path $projectDir "foo_r128_normalizer.vcxproj"
 
 $fullLog = Join-Path $toolRoot "build_full_log.txt"
 $errorsLog = Join-Path $toolRoot "build_errors.txt"
-$updateLog = Join-Path $toolRoot "v1.6.0_update_log.txt"
+$updateLog = Join-Path $toolRoot "v1.6.1_update_log.txt"
 $validationLog = Join-Path $toolRoot "build_validation.txt"
 $binLog = Join-Path $toolRoot "build.binlog"
 
@@ -116,7 +116,7 @@ function Write-ErrorSummary {
 
     if ($contextLines.Count -gt 0) {
         @(
-            "R128 Normalizer v1.6.0 build error summary"
+            "R128 Normalizer v1.6.1 build error summary"
             "重要行の前後2行を抽出しています。"
             ""
             $contextLines
@@ -146,7 +146,7 @@ try {
             throw "更新用ソースが見つかりません: $source"
         }
 
-        $backup = "$target.before_v1.6.0"
+        $backup = "$target.before_v1.6.1"
 
         if (
             (Test-Path $target) -and
@@ -161,7 +161,7 @@ try {
     }
 
     # Japanese narrow strings passed to the foobar2000 SDK are UTF-8.
-    $projectBackup = "$projectPath.before_v1.6.0"
+    $projectBackup = "$projectPath.before_v1.6.1"
 
     if (-not (Test-Path $projectBackup)) {
         Copy-Item $projectPath $projectBackup -Force
@@ -288,7 +288,7 @@ try {
         throw "MSBuild.exeが見つかりません。"
     }
 
-    Write-Host "v1.6.0のソース更新が完了しました。" `
+    Write-Host "v1.6.1のソース更新が完了しました。" `
         -ForegroundColor Cyan
     Write-Host "Release x64をビルドします。"
     Write-Host ""
@@ -360,32 +360,32 @@ try {
         -not (
             Test-BinaryContainsAscii `
                 -Path $dllPath `
-                -Text "1.6.0"
+                -Text "1.6.1"
         )
     ) {
-        throw "生成DLL内にバージョン1.6.0を確認できません。"
+        throw "生成DLL内にバージョン1.6.1を確認できません。"
     }
 
     $hash = (Get-FileHash $dllPath -Algorithm SHA256).Hash
 
     @(
-        "R128 Normalizer v1.6.0 build validation"
+        "R128 Normalizer v1.6.1 build validation"
         "DLL: $dllPath"
         "Size: $($dll.Length) bytes"
         "LastWriteTimeUtc: $($dll.LastWriteTimeUtc.ToString('o'))"
         ("PE Machine: 0x{0:X4} (x64)" -f $machine)
-        "Embedded version: 1.6.0"
+        "Embedded version: 1.6.1"
         "SHA256: $hash"
     ) |
         Set-Content $validationLog -Encoding UTF8
 
     Write-UpdateLog "Build succeeded: $dllPath"
     Write-UpdateLog (
-        "Validated x64 / embedded version 1.6.0 / SHA256 $hash"
+        "Validated x64 / embedded version 1.6.1 / SHA256 $hash"
     )
 
     Write-Host ""
-    Write-Host "v1.6.0のビルドに成功しました。" `
+    Write-Host "v1.6.1のビルドに成功しました。" `
         -ForegroundColor Green
     Write-Host $dllPath -ForegroundColor Green
     exit 0
