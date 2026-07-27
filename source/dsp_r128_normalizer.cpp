@@ -5,6 +5,22 @@ namespace {
 static const GUID guid_r128_normalizer =
 { 0x4d3f8b85, 0x61d2, 0x47f4, { 0xa8, 0x51, 0x7c, 0x1b, 0x3d, 0xd7, 0x92, 0x46 } };
 
+// Separate component-level setting. This deliberately does not change the
+// DSP preset serialization format (kPresetVersion remains v7).
+static const GUID guid_cfg_display_language =
+{ 0x13f3c74b, 0xf11d, 0x4db5, { 0xa9, 0x6d, 0xe7, 0x7f, 0xc8, 0x90, 0x6c, 0x52 } };
+
+enum class display_language : int {
+    automatic = 0,
+    japanese = 1,
+    english = 2
+};
+
+cfg_int g_cfg_display_language(
+    guid_cfg_display_language,
+    static_cast<int>(display_language::automatic)
+);
+
 constexpr t_uint32 kPresetVersion = 7;
 
 constexpr double kPi = 3.1415926535897932384626433832795;
@@ -191,6 +207,43 @@ struct r128_settings {
     bool enable_three_band_master = false;
 };
 
+display_language configured_display_language() {
+    const int value = static_cast<int>(
+        g_cfg_display_language.get()
+    );
+
+    if (value == static_cast<int>(display_language::japanese)) {
+        return display_language::japanese;
+    }
+    if (value == static_cast<int>(display_language::english)) {
+        return display_language::english;
+    }
+
+    return display_language::automatic;
+}
+
+bool ui_uses_english() {
+    const display_language configured =
+        configured_display_language();
+
+    if (configured == display_language::english) {
+        return true;
+    }
+    if (configured == display_language::japanese) {
+        return false;
+    }
+
+    return PRIMARYLANGID(GetUserDefaultUILanguage()) !=
+        LANG_JAPANESE;
+}
+
+const wchar_t* ui_text(
+    const wchar_t* japanese,
+    const wchar_t* english
+) {
+    return ui_uses_english() ? english : japanese;
+}
+
 r128_settings default_settings() {
     return {};
 }
@@ -366,23 +419,33 @@ recognized_profile detect_recognized_profile(
 const wchar_t* recognized_profile_name(
     recognized_profile profile
 ) {
+    const bool english = ui_uses_english();
+
     switch (profile) {
     case recognized_profile::standard:
-        return L"ナチュラル -18";
+        return english ? L"Natural -18" : L"ナチュラル -18";
     case recognized_profile::streaming:
-        return L"パワーブースト -14";
+        return english
+            ? L"Power Boost -14"
+            : L"パワーブースト -14";
     case recognized_profile::broadcast:
-        return L"リラックス -23";
+        return english ? L"Relaxed -23" : L"リラックス -23";
     case recognized_profile::night:
-        return L"ナイトセーフ -22";
+        return english ? L"Night Safe -22" : L"ナイトセーフ -22";
     case recognized_profile::modern:
-        return L"モダンブースト -9";
+        return english
+            ? L"Modern Boost -9"
+            : L"モダンブースト -9";
     case recognized_profile::adaptive:
-        return L"1バンド・アダプティブ -10";
+        return english
+            ? L"1-Band Adaptive -10"
+            : L"1バンド・アダプティブ -10";
     case recognized_profile::three_band:
-        return L"3バンド・アダプティブ -10";
+        return english
+            ? L"3-Band Adaptive -10"
+            : L"3バンド・アダプティブ -10";
     default:
-        return L"カスタム設定";
+        return english ? L"Custom Settings" : L"カスタム設定";
     }
 }
 
@@ -394,7 +457,9 @@ void update_profile_indicator(
     wchar_t text[96] = {};
     swprintf_s(
         text,
-        pending ? L"選択: %s" : L"現在: %s",
+        pending
+            ? ui_text(L"選択: %s", L"Selected: %s")
+            : ui_text(L"現在: %s", L"Current: %s"),
         recognized_profile_name(
             detect_recognized_profile(value)
         )
@@ -474,41 +539,44 @@ double calculate_gated_integrated_lufs(
 const wchar_t* processing_risk_to_text(int state) {
     switch (state) {
     case 1:
-        return L"適正";
+        return ui_text(L"適正", L"Normal");
     case 2:
-        return L"強め";
+        return ui_text(L"強め", L"Strong");
     case 3:
-        return L"過剰・自動保護中";
+        return ui_text(
+            L"過剰・自動保護中",
+            L"Excessive / auto protection"
+        );
     default:
-        return L"無効";
+        return ui_text(L"無効", L"Disabled");
     }
 }
 
 const wchar_t* track_evaluation_to_text(int state) {
     switch (state) {
     case 1:
-        return L"安全";
+        return ui_text(L"安全", L"Safe");
     case 2:
-        return L"強め";
+        return ui_text(L"強め", L"Strong");
     case 3:
-        return L"要調整";
+        return ui_text(L"要調整", L"Needs adjustment");
     default:
-        return L"未測定";
+        return ui_text(L"未測定", L"Not measured");
     }
 }
 
 const wchar_t* current_processing_state_to_text(int state) {
     switch (state) {
     case 1:
-        return L"正常";
+        return ui_text(L"正常", L"Normal");
     case 2:
-        return L"自動調整中";
+        return ui_text(L"自動調整中", L"Auto-adjusting");
     case 3:
-        return L"調整上限";
+        return ui_text(L"調整上限", L"Adjustment limit");
     case 4:
-        return L"要調整";
+        return ui_text(L"要調整", L"Needs adjustment");
     default:
-        return L"未測定";
+        return ui_text(L"未測定", L"Not measured");
     }
 }
 
@@ -859,10 +927,17 @@ void setup_config_tabs(HWND wnd) {
         return;
     }
 
+    int selected_page = TabCtrl_GetCurSel(tabs);
+    if (selected_page < 0 || selected_page > 2) {
+        selected_page = 0;
+    }
+
+    TabCtrl_DeleteAllItems(tabs);
+
     const wchar_t* titles[] = {
-        L"基本設定",
-        L"追加処理",
-        L"診断"
+        ui_text(L"基本設定", L"Basic"),
+        ui_text(L"追加処理", L"Processing"),
+        ui_text(L"診断", L"Diagnostics")
     };
 
     for (int index = 0; index < 3; ++index) {
@@ -872,8 +947,159 @@ void setup_config_tabs(HWND wnd) {
         TabCtrl_InsertItem(tabs, index, &item);
     }
 
-    TabCtrl_SetCurSel(tabs, 0);
-    update_config_tab_page(wnd, 0);
+    TabCtrl_SetCurSel(tabs, selected_page);
+    update_config_tab_page(wnd, selected_page);
+}
+
+struct localized_control_text {
+    int control_id;
+    const wchar_t* japanese;
+    const wchar_t* english;
+};
+
+constexpr localized_control_text kPrimaryUiText[] = {
+    { IDC_BASIC_HEADER, L"左列：R128補正・測定", L"R128 normalization and measurement" },
+    { IDC_BASIC_RIGHT_HEADER, L"右列：True Peak保護・ゲイン固定", L"True Peak protection and gain lock" },
+    { IDC_LABEL_TARGET_LUFS, L"目標ラウドネス：", L"Target loudness:" },
+    { IDC_LABEL_MAX_BOOST, L"R128補正ゲイン最大増幅量：", L"Maximum R128 boost:" },
+    { IDC_LABEL_MAX_ATTENUATION, L"R128補正ゲイン最大減衰量：", L"Maximum R128 attenuation:" },
+    { IDC_LABEL_TRUE_PEAK, L"True Peak上限：", L"True Peak limit:" },
+    { IDC_LABEL_LOOKAHEAD, L"True Peakリミッター先読み時間：", L"Limiter look-ahead:" },
+    { IDC_LABEL_LIMITER_RELEASE, L"True Peakリミッター解放時間：", L"Limiter release:" },
+    { IDC_LABEL_STARTUP, L"曲頭安定化解析時間：", L"Startup analysis time:" },
+    { IDC_UNIT_STARTUP, L"秒", L"sec" },
+    { IDC_LABEL_SILENCE_THRESHOLD, L"静音保護しきい値：", L"Silence guard threshold:" },
+    { IDC_LABEL_GAIN_LOCK_SECONDS, L"補正ゲイン固定判定時間：", L"Gain-lock detection time:" },
+    { IDC_UNIT_GAIN_LOCK_SECONDS, L"秒", L"sec" },
+    { IDC_LABEL_GAIN_LOCK_TOLERANCE, L"補正ゲイン固定許容幅：", L"Gain-lock tolerance:" },
+    { IDC_RESET_EACH_TRACK, L"トラック変更時に測定値をリセット", L"Reset measurements on track change" },
+    { IDC_ENABLE_SILENCE_GUARD, L"静音区間では増幅を保留", L"Hold boost during silent passages" },
+    { IDC_ENABLE_PEAK_GUARD, L"True Peak保護（先読みリミッター）を有効", L"Enable True Peak protection (look-ahead limiter)" },
+    { IDC_ENABLE_GAIN_LOCK, L"安定後に曲中の補正ゲインを固定", L"Lock normalization gain after stabilization" },
+
+    { IDC_ADV_HEADER, L"追加マスタリング処理（任意）", L"Additional mastering processing (optional)" },
+    { IDC_ADV_GROUP_MODERN, L"モダン処理", L"Modern Processing" },
+    { IDC_ADV_GROUP_ADAPTIVE, L"1バンド・アダプティブ", L"1-Band Adaptive" },
+    { IDC_ADV_GROUP_THREE_BAND, L"3バンド・アダプティブ", L"3-Band Adaptive" },
+    { IDC_ADV_GROUP_STRENGTH, L"共通の処理強度", L"Shared Processing Strength" },
+    { IDC_ENABLE_MODERN_BOOST, L"有効にする", L"Enable" },
+    { IDC_ENABLE_ADAPTIVE_MASTER, L"有効にする", L"Enable" },
+    { IDC_ENABLE_THREE_BAND_MASTER, L"有効にする", L"Enable" },
+    { IDC_ADV_INFO_1, L"コンプレッサー、ソフトクリッパー、True Peakリミッターを組み合わせます。", L"Combines compression, soft clipping, and True Peak limiting." },
+    { IDC_ADV_INFO_2, L"曲の音量とLRAに応じて、モダン処理の強度を自動調整します。", L"Adapts Modern Processing strength to loudness and LRA." },
+    { IDC_ADV_INFO_3, L"低域・中域・高域に分け、それぞれの処理量を個別に制御します。", L"Controls low, mid, and high bands independently." },
+    { IDC_LABEL_MODERN_STRENGTH, L"モダン処理強度／アダプティブ上限：", L"Modern strength / adaptive maximum:" },
+
+    { IDC_DIAG_LEFT_HEADER, L"現在値・処理状態（上から下へ）", L"Current values and processing state" },
+    { IDC_DIAG_RIGHT_HEADER, L"ピーク・環境・最大値（上から下へ）", L"Peaks, environment, and maxima" },
+    { IDC_LABEL_DIAG_NORMALIZATION, L"R128ノーマライズ状態：", L"R128 normalization:" },
+    { IDC_LABEL_DIAG_GAIN_LOCK, L"補正ゲイン固定状態：", L"Gain lock:" },
+    { IDC_LABEL_DIAG_MOMENTARY, L"Momentaryラウドネス：", L"Momentary loudness:" },
+    { IDC_LABEL_DIAG_SHORT_TERM, L"Short-termラウドネス：", L"Short-term loudness:" },
+    { IDC_LABEL_DIAG_INPUT_INT, L"入力Integratedラウドネス：", L"Input integrated loudness:" },
+    { IDC_LABEL_DIAG_OUTPUT_INT, L"出力Integratedラウドネス：", L"Output integrated loudness:" },
+    { IDC_LABEL_DIAG_TARGET_DIFF, L"目標LUFSとの差：", L"Difference from target:" },
+    { IDC_LABEL_DIAG_LRA, L"ラウドネスレンジ（LRA）：", L"Loudness range (LRA):" },
+    { IDC_LABEL_DIAG_GAIN, L"適用中の総ゲイン：", L"Total applied gain:" },
+    { IDC_LABEL_DIAG_PROCESSING, L"追加処理の状態：", L"Additional processing:" },
+    { IDC_LABEL_DIAG_SAFETY, L"自動安全補正ゲイン：", L"Automatic safety gain:" },
+    { IDC_LABEL_DIAG_COMPRESSOR, L"コンプレッサー減衰量：", L"Compressor reduction:" },
+    { IDC_LABEL_DIAG_CLIPPER, L"ソフトクリッパー減衰量：", L"Soft clipper reduction:" },
+    { IDC_LABEL_DIAG_LIMITER, L"True Peakリミッター減衰量：", L"True Peak limiter reduction:" },
+    { IDC_LABEL_DIAG_TRUE_PEAK, L"処理後True Peak：", L"Processed True Peak:" },
+    { IDC_LABEL_DIAG_PEAK_GUARD, L"True Peak保護状態：", L"True Peak protection:" },
+    { IDC_LABEL_DIAG_LATENCY, L"処理遅延：", L"Processing latency:" },
+    { IDC_LABEL_DIAG_SAMPLE_RATE, L"サンプルレート：", L"Sample rate:" },
+    { IDC_LABEL_DIAG_CHANNEL_LAYOUT, L"チャンネル構成：", L"Channel layout:" },
+    { IDC_LABEL_DIAG_CPU, L"CPU負荷：", L"CPU load:" },
+    { IDC_LABEL_DIAG_CLIP_EVENTS, L"0 dBTP超過イベント：", L"0 dBTP exceedance events:" },
+    { IDC_LABEL_DIAG_THREE_BAND, L"3バンド減衰量：", L"3-band reduction:" },
+    { IDC_LABEL_DIAG_MAX_TRUE_PEAK, L"最大True Peak：", L"Maximum True Peak:" },
+    { IDC_LABEL_DIAG_MAX_COMPRESSOR, L"最大コンプレッサー減衰量：", L"Maximum compressor reduction:" },
+    { IDC_LABEL_DIAG_MAX_CLIPPER, L"最大ソフトクリッパー減衰量：", L"Maximum soft clipper reduction:" },
+    { IDC_LABEL_DIAG_MAX_LIMITER, L"最大True Peakリミッター減衰量：", L"Maximum limiter reduction:" },
+    { IDC_LABEL_DIAG_EVALUATION, L"現在の処理状態：", L"Current processing state:" },
+
+    { IDC_PRESET_GROUP, L"プリセット（上段：標準4種／下段：追加処理3種）", L"Presets (standard: top / additional processing: bottom)" },
+    { IDC_PROFILE_STANDARD, L"ナチュラル -18", L"Natural -18" },
+    { IDC_PROFILE_STREAMING, L"パワーブースト -14", L"Power Boost -14" },
+    { IDC_PROFILE_BROADCAST, L"リラックス -23", L"Relaxed -23" },
+    { IDC_PROFILE_NIGHT, L"ナイトセーフ -22", L"Night Safe -22" },
+    { IDC_PROFILE_MODERN, L"モダンブースト -9", L"Modern Boost -9" },
+    { IDC_PROFILE_ADAPTIVE, L"1バンド・アダプティブ -10", L"1-Band Adaptive -10" },
+    { IDC_PROFILE_THREE_BAND, L"3バンド・アダプティブ -10", L"3-Band Adaptive -10" },
+    { IDC_COMPARE_GROUP, L"選択中のプリセット／比較", L"Selected preset / comparison" },
+    { IDC_COMPARE_LOUDNESS_MATCH, L"音量一致", L"Loudness match" },
+    { IDC_ORIGINAL_COMPARE, L"比較（押している間）", L"Compare (hold)" },
+    { IDC_SHOW_LICENSE, L"ライセンス", L"License" },
+    { IDC_LANGUAGE_LABEL, L"表示言語：", L"Display language:" },
+    { IDC_RESET_MEASUREMENT, L"測定リセット", L"Reset measurement" },
+    { IDC_COPY_DIAGNOSTICS, L"診断コピー", L"Copy diagnostics" },
+    { IDC_SHOW_DIAGNOSTIC_HELP, L"用語集", L"Glossary" },
+    { IDC_DEFAULTS, L"初期設定", L"Defaults" },
+    { IDC_APPLY_SETTINGS, L"適用", L"Apply" },
+    { IDOK, L"OK", L"OK" },
+    { IDCANCEL, L"取消", L"Cancel" }
+};
+
+void initialize_language_combo(HWND wnd) {
+    const HWND combo = GetDlgItem(wnd, IDC_DISPLAY_LANGUAGE);
+    if (combo == nullptr) {
+        return;
+    }
+
+    SendMessageW(combo, CB_RESETCONTENT, 0, 0);
+
+    const wchar_t* choices[] = {
+        ui_text(L"自動（Windows）", L"Automatic (Windows)"),
+        ui_text(L"日本語", L"Japanese"),
+        L"English"
+    };
+
+    for (const wchar_t* choice : choices) {
+        SendMessageW(
+            combo,
+            CB_ADDSTRING,
+            0,
+            reinterpret_cast<LPARAM>(choice)
+        );
+    }
+
+    SendMessageW(
+        combo,
+        CB_SETCURSEL,
+        static_cast<WPARAM>(configured_display_language()),
+        0
+    );
+}
+
+void apply_primary_ui_language(
+    HWND wnd,
+    const r128_settings* value,
+    bool pending
+) {
+    SetWindowTextW(
+        wnd,
+        ui_text(
+            L"R128 音量ノーマライザー",
+            L"R128 Loudness Normalizer"
+        )
+    );
+
+    for (const auto& entry : kPrimaryUiText) {
+        SetDlgItemTextW(
+            wnd,
+            entry.control_id,
+            ui_text(entry.japanese, entry.english)
+        );
+    }
+
+    setup_config_tabs(wnd);
+    initialize_language_combo(wnd);
+
+    if (value != nullptr) {
+        update_profile_indicator(wnd, *value, pending);
+    }
 }
 
 void select_config_tab_for_control(HWND wnd, int control_id) {
@@ -993,12 +1219,20 @@ bool read_float(
         wchar_t message[256] = {};
         swprintf_s(
             message,
-            L"%sの値が正しくありません。\n範囲：%.1f ～ %.1f",
+            ui_text(
+                L"%sの値が正しくありません。\n範囲：%.1f ～ %.1f",
+                L"The value for %s is invalid.\nRange: %.1f to %.1f"
+            ),
             field_name,
             static_cast<double>(minimum),
             static_cast<double>(maximum)
         );
-        MessageBoxW(wnd, message, L"入力値の確認", MB_OK | MB_ICONWARNING);
+        MessageBoxW(
+            wnd,
+            message,
+            ui_text(L"入力値の確認", L"Check input value"),
+            MB_OK | MB_ICONWARNING
+        );
         select_config_tab_for_control(wnd, control_id);
         SetFocus(GetDlgItem(wnd, control_id));
         return false;
@@ -1116,16 +1350,16 @@ void format_channel_layout_text(
     const wchar_t* layout_name = nullptr;
 
     if (channels == 1 && channel_mask == kChannelConfigMono) {
-        layout_name = L"モノラル";
+        layout_name = ui_text(L"モノラル", L"Mono");
     }
     else if (channels == 2 && channel_mask == kChannelConfigStereo) {
-        layout_name = L"ステレオ";
+        layout_name = ui_text(L"ステレオ", L"Stereo");
     }
     else if (channels == 6 && channel_mask == kChannelConfig5Point1) {
-        layout_name = L"5.1（バック）";
+        layout_name = ui_text(L"5.1（バック）", L"5.1 (back)");
     }
     else if (channels == 6 && channel_mask == kChannelConfig5Point1Side) {
-        layout_name = L"5.1（サイド）";
+        layout_name = ui_text(L"5.1（サイド）", L"5.1 (side)");
     }
     else if (channels == 8 && channel_mask == kChannelConfig7Point1) {
         layout_name = L"7.1";
@@ -1136,7 +1370,7 @@ void format_channel_layout_text(
             swprintf_s(
                 output,
                 output_count,
-                L"%s / LFE除外",
+                ui_text(L"%s / LFE除外", L"%s / LFE excluded"),
                 layout_name
             );
         }
@@ -1147,12 +1381,22 @@ void format_channel_layout_text(
     }
 
     if (channels == 0) {
-        swprintf_s(output, output_count, L"未検出");
+        swprintf_s(
+            output,
+            output_count,
+            L"%s",
+            ui_text(L"未検出", L"Not detected")
+        );
         return;
     }
 
     if (channel_mask == 0) {
-        swprintf_s(output, output_count, L"%u ch / 配置不明", channels);
+        swprintf_s(
+            output,
+            output_count,
+            ui_text(L"%u ch / 配置不明", L"%u ch / unknown layout"),
+            channels
+        );
         return;
     }
 
@@ -1160,7 +1404,7 @@ void format_channel_layout_text(
         swprintf_s(
             output,
             output_count,
-            L"%u ch / LFE除外",
+            ui_text(L"%u ch / LFE除外", L"%u ch / LFE excluded"),
             channels
         );
     }
@@ -1172,24 +1416,24 @@ void format_channel_layout_text(
 const wchar_t* normalization_state_to_text(int state) {
     switch (state) {
     case 1:
-        return L"測定中・保留";
+        return ui_text(L"測定中・保留", L"Measuring / held");
     case 2:
-        return L"静音保護・保留";
+        return ui_text(L"静音保護・保留", L"Silence guard / held");
     case 4:
-        return L"安全減衰中";
+        return ui_text(L"安全減衰中", L"Safety attenuation");
     default:
-        return L"通常補正中";
+        return ui_text(L"通常補正中", L"Normalizing");
     }
 }
 
 const wchar_t* peak_guard_state_to_text(int state) {
     switch (state) {
     case 0:
-        return L"無効";
+        return ui_text(L"無効", L"Disabled");
     case 2:
-        return L"作動中";
+        return ui_text(L"作動中", L"Active");
     default:
-        return L"待機";
+        return ui_text(L"待機", L"Standby");
     }
 }
 
@@ -1247,7 +1491,7 @@ std::wstring format_diagnostic_number(
     wchar_t buffer[64] = {};
 
     if (!std::isfinite(value) || value <= -190.0) {
-        return L"未測定";
+        return ui_text(L"未測定", L"Not measured");
     }
 
     if (decimals == 1) {
@@ -1508,12 +1752,16 @@ std::wstring build_diagnostic_report() {
     wchar_t gain_lock_text[160] = {};
     switch (gain_lock_state) {
     case 0:
-        swprintf_s(gain_lock_text, L"無効");
+        swprintf_s(
+            gain_lock_text,
+            L"%s",
+            ui_text(L"無効", L"Disabled")
+        );
         break;
     case 2:
         swprintf_s(
             gain_lock_text,
-            L"固定済み %+.2f dB",
+            ui_text(L"固定済み %+.2f dB", L"Locked at %+.2f dB"),
             locked_gain_db
         );
         break;
@@ -1521,7 +1769,10 @@ std::wstring build_diagnostic_report() {
         if (normalization_gain_db < -0.01) {
             swprintf_s(
                 gain_lock_text,
-                L"固定 %+.2f → 現在 %+.2f dB（安全減衰）",
+                ui_text(
+                    L"固定 %+.2f → 現在 %+.2f dB（安全減衰）",
+                    L"Locked %+.2f -> current %+.2f dB (safety attenuation)"
+                ),
                 locked_gain_db,
                 normalization_gain_db
             );
@@ -1529,7 +1780,10 @@ std::wstring build_diagnostic_report() {
         else {
             swprintf_s(
                 gain_lock_text,
-                L"固定 %+.2f → 現在 %+.2f dB（増幅抑制）",
+                ui_text(
+                    L"固定 %+.2f → 現在 %+.2f dB（増幅抑制）",
+                    L"Locked %+.2f -> current %+.2f dB (boost limited)"
+                ),
                 locked_gain_db,
                 normalization_gain_db
             );
@@ -1538,7 +1792,7 @@ std::wstring build_diagnostic_report() {
     default:
         swprintf_s(
             gain_lock_text,
-            L"残り %.1f秒",
+            ui_text(L"残り %.1f秒", L"%.1f sec remaining"),
             std::max(0.0, remaining_seconds)
         );
         break;
@@ -1574,7 +1828,8 @@ std::wstring build_diagnostic_report() {
     wchar_t report[6656] = {};
     swprintf_s(
         report,
-        L"R128 音量ノーマライザー 1.5.3\r\n"
+        ui_text(
+        L"R128 音量ノーマライザー 1.6.0\r\n"
         L"再生状態: %s\r\n"
         L"補正状態: %s\r\n"
         L"補正ゲイン固定: %s\r\n"
@@ -1630,16 +1885,83 @@ std::wstring build_diagnostic_report() {
         L"処理評価: %s\r\n"
         L"サンプルレート: %u Hz\r\n"
         L"推定CPU負荷: %.2f %%\r\n",
-        stream_active ? L"再生中" : L"待機中",
+        L"R128 Loudness Normalizer 1.6.0\r\n"
+        L"Playback state: %s\r\n"
+        L"Normalization state: %s\r\n"
+        L"Gain lock: %s\r\n"
+        L"Modern Boost: %s\r\n"
+        L"A/B comparison: %s\r\n"
+        L"A/B match gain: %+.2f dB (15 ms fade)\r\n"
+        L"1-Band Adaptive: %s\r\n"
+        L"3-Band Adaptive: %s\r\n"
+        L"Effective Modern strength: %.1f %%\r\n"
+        L"Current 3-band reduction (L/M/H): %.2f / %.2f / %.2f dB\r\n"
+        L"Maximum 3-band reduction (L/M/H): %.2f / %.2f / %.2f dB\r\n"
+        L"Momentary (input): %s\r\n"
+        L"Short-term (input): %s\r\n"
+        L"Integrated (input): %s\r\n"
+        L"Integrated (output): %s\r\n"
+        L"Difference from target: %s\r\n"
+        L"Estimated LRA: %s\r\n"
+        L"Additional processing: %s\r\n"
+        L"Automatic safety gain: %.2f dB\r\n"
+        L"Current processing state: %s\r\n"
+        L"Current normalization gain: %+.2f dB\r\n"
+        L"Total applied gain: %+.2f dB\r\n"
+        L"Compressor reduction: %.2f dB\r\n"
+        L"Clipper reduction: %.2f dB\r\n"
+        L"Limiter reduction: %.2f dB\r\n"
+        L"Detected True Peak: %s\r\n"
+        L"Peak protection: %s\r\n"
+        L"Effective latency: %.1f ms\r\n"
+        L"Sample rate: %u Hz\r\n"
+        L"Estimated CPU load: %.2f %%\r\n"
+        L"Track maximum True Peak: %s\r\n"
+        L"Maximum compressor reduction: %.2f dB\r\n"
+        L"Maximum clipper reduction: %.2f dB\r\n"
+        L"Maximum limiter reduction: %.2f dB\r\n"
+        L"0 dBTP exceedance events: %llu\r\n"
+        L"Invalid samples recovered: %llu\r\n"
+        L"Track evaluation: %s\r\n"
+        L"Channel layout: %s\r\n"
+        L"\r\n"
+        L"Previous finalized track: %s\r\n"
+        L"Input Integrated: %s\r\n"
+        L"Output Integrated: %s\r\n"
+        L"Difference from target: %s\r\n"
+        L"Estimated LRA: %s\r\n"
+        L"Maximum True Peak: %s\r\n"
+        L"Maximum compressor reduction: %.2f dB\r\n"
+        L"Maximum clipper reduction: %.2f dB\r\n"
+        L"Maximum limiter reduction: %.2f dB\r\n"
+        L"3-Band Adaptive used: %s\r\n"
+        L"Maximum 3-band reduction (L/M/H): %.2f / %.2f / %.2f dB\r\n"
+        L"0 dBTP exceedance events: %llu\r\n"
+        L"Invalid samples recovered: %llu\r\n"
+        L"Processing evaluation: %s\r\n"
+        L"Sample rate: %u Hz\r\n"
+        L"Estimated CPU load: %.2f %%\r\n"
+        ),
+        stream_active
+            ? ui_text(L"再生中", L"Playing")
+            : ui_text(L"待機中", L"Standby"),
         normalization_state_to_text(normalization_state),
         gain_lock_text,
-        modern_boost_enabled ? L"有効" : L"無効",
+        modern_boost_enabled
+            ? ui_text(L"有効", L"Enabled")
+            : ui_text(L"無効", L"Disabled"),
         original_compare_mode == 2
-            ? L"音量一致"
-            : (original_compare_mode == 1 ? L"完全バイパス" : L"通常"),
+            ? ui_text(L"音量一致", L"Loudness matched")
+            : (original_compare_mode == 1
+                ? ui_text(L"完全バイパス", L"Full bypass")
+                : ui_text(L"通常", L"Normal")),
         compare_match_gain_db,
-        adaptive_master_enabled ? L"有効" : L"無効",
-        three_band_master_enabled ? L"有効" : L"無効",
+        adaptive_master_enabled
+            ? ui_text(L"有効", L"Enabled")
+            : ui_text(L"無効", L"Disabled"),
+        three_band_master_enabled
+            ? ui_text(L"有効", L"Enabled")
+            : ui_text(L"無効", L"Disabled"),
         effective_strength_percent,
         three_band_low_reduction_db,
         three_band_mid_reduction_db,
@@ -1657,7 +1979,7 @@ std::wstring build_diagnostic_report() {
         safety_reduction_db,
         stream_active
             ? current_processing_state_to_text(current_processing_state)
-            : L"待機中",
+            : ui_text(L"待機中", L"Standby"),
         normalization_gain_db,
         applied_gain_db,
         compressor_reduction_db,
@@ -1676,7 +1998,9 @@ std::wstring build_diagnostic_report() {
         recovered_sample_count,
         track_evaluation_to_text(track_evaluation_state),
         channel_text,
-        final_summary_valid ? L"あり" : L"なし",
+        final_summary_valid
+            ? ui_text(L"あり", L"Available")
+            : ui_text(L"なし", L"None"),
         final_input_integrated.c_str(),
         final_output_integrated.c_str(),
         final_target_difference.c_str(),
@@ -1685,7 +2009,9 @@ std::wstring build_diagnostic_report() {
         final_max_compressor_reduction_db,
         final_max_clipper_reduction_db,
         final_max_limiter_reduction_db,
-        final_three_band_master_enabled ? L"有効" : L"無効",
+        final_three_band_master_enabled
+            ? ui_text(L"有効", L"Enabled")
+            : ui_text(L"無効", L"Disabled"),
         final_max_three_band_low_reduction_db,
         final_max_three_band_mid_reduction_db,
         final_max_three_band_high_reduction_db,
@@ -1961,7 +2287,11 @@ void refresh_diagnostic_controls(HWND wnd) {
         set_control_text(wnd, IDC_DIAG_MAX_TRUE_PEAK, text);
     }
     else {
-        set_control_text(wnd, IDC_DIAG_MAX_TRUE_PEAK, L"未測定");
+        set_control_text(
+            wnd,
+            IDC_DIAG_MAX_TRUE_PEAK,
+            ui_text(L"未測定", L"Not measured")
+        );
     }
 
     swprintf_s(text, L"%.2f dB", displayed_max_compressor);
@@ -1970,7 +2300,11 @@ void refresh_diagnostic_controls(HWND wnd) {
     set_control_text(wnd, IDC_DIAG_MAX_CLIPPER_REDUCTION, text);
     swprintf_s(text, L"%.2f dB", displayed_max_limiter);
     set_control_text(wnd, IDC_DIAG_MAX_LIMITER_REDUCTION, text);
-    swprintf_s(text, L"%llu 回", displayed_clip_events);
+    swprintf_s(
+        text,
+        ui_text(L"%llu 回", L"%llu events"),
+        displayed_clip_events
+    );
     set_control_text(wnd, IDC_DIAG_CLIP_EVENT_COUNT, text);
     set_control_text(
         wnd,
@@ -1979,70 +2313,89 @@ void refresh_diagnostic_controls(HWND wnd) {
             ? current_processing_state_to_text(
                 displayed_current_processing_state
             )
-            : L"待機中"
+            : ui_text(L"待機中", L"Standby")
     );
     if (displayed_sample_rate > 0) {
         swprintf_s(text, L"%u Hz", displayed_sample_rate);
         set_control_text(wnd, IDC_DIAG_SAMPLE_RATE, text);
     }
     else {
-        set_control_text(wnd, IDC_DIAG_SAMPLE_RATE, L"未検出");
+        set_control_text(
+            wnd,
+            IDC_DIAG_SAMPLE_RATE,
+            ui_text(L"未検出", L"Not detected")
+        );
     }
     swprintf_s(text, L"%.2f %%", displayed_cpu_load);
     set_control_text(wnd, IDC_DIAG_CPU_LOAD, text);
 
     if (!stream_active) {
-        set_control_text(wnd, IDC_DIAG_NORMALIZATION_STATE, L"待機中");
-        set_control_text(wnd, IDC_DIAG_GAIN_LOCK, L"待機中");
-        set_control_text(wnd, IDC_DIAG_MOMENTARY, L"待機中");
-        set_control_text(wnd, IDC_DIAG_SHORT_TERM, L"待機中");
+        set_control_text(wnd, IDC_DIAG_NORMALIZATION_STATE, ui_text(L"待機中", L"Standby"));
+        set_control_text(wnd, IDC_DIAG_GAIN_LOCK, ui_text(L"待機中", L"Standby"));
+        set_control_text(wnd, IDC_DIAG_MOMENTARY, ui_text(L"待機中", L"Standby"));
+        set_control_text(wnd, IDC_DIAG_SHORT_TERM, ui_text(L"待機中", L"Standby"));
         if (final_summary_valid) {
-            swprintf_s(text, L"前回 %.1f LUFS", final_input_integrated_lufs);
+            swprintf_s(text, ui_text(L"前回 %.1f LUFS", L"Previous %.1f LUFS"), final_input_integrated_lufs);
             set_control_text(wnd, IDC_DIAG_INTEGRATED, text);
-            swprintf_s(text, L"前回 %.1f LUFS", final_output_integrated_lufs);
+            swprintf_s(text, ui_text(L"前回 %.1f LUFS", L"Previous %.1f LUFS"), final_output_integrated_lufs);
             set_control_text(wnd, IDC_DIAG_OUTPUT_INTEGRATED, text);
-            swprintf_s(text, L"前回 %+.1f LU", final_target_difference_lu);
+            swprintf_s(text, ui_text(L"前回 %+.1f LU", L"Previous %+.1f LU"), final_target_difference_lu);
             set_control_text(wnd, IDC_DIAG_TARGET_DIFFERENCE, text);
-            swprintf_s(text, L"前回 %.1f LU", final_lra_lu);
+            swprintf_s(text, ui_text(L"前回 %.1f LU", L"Previous %.1f LU"), final_lra_lu);
             set_control_text(wnd, IDC_DIAG_LRA, text);
         }
         else {
-            set_control_text(wnd, IDC_DIAG_INTEGRATED, L"待機中");
-            set_control_text(wnd, IDC_DIAG_OUTPUT_INTEGRATED, L"待機中");
-            set_control_text(wnd, IDC_DIAG_TARGET_DIFFERENCE, L"待機中");
-            set_control_text(wnd, IDC_DIAG_LRA, L"待機中");
+            set_control_text(wnd, IDC_DIAG_INTEGRATED, ui_text(L"待機中", L"Standby"));
+            set_control_text(wnd, IDC_DIAG_OUTPUT_INTEGRATED, ui_text(L"待機中", L"Standby"));
+            set_control_text(wnd, IDC_DIAG_TARGET_DIFFERENCE, ui_text(L"待機中", L"Standby"));
+            set_control_text(wnd, IDC_DIAG_LRA, ui_text(L"待機中", L"Standby"));
         }
         set_control_text(
             wnd,
             IDC_DIAG_PROCESSING_RISK,
             original_compare_mode == 2
-                ? L"A/B音量一致"
+                ? ui_text(L"A/B音量一致", L"A/B loudness match")
                 : (original_compare_mode == 1
-                    ? L"原音比較中"
-                    : (modern_boost_enabled ? L"待機中" : L"無効"))
+                    ? ui_text(L"原音比較中", L"Comparing original")
+                    : (modern_boost_enabled
+                        ? ui_text(L"待機中", L"Standby")
+                        : ui_text(L"無効", L"Disabled")))
         );
         set_control_text(
             wnd,
             IDC_DIAG_SAFETY_REDUCTION,
-            modern_boost_enabled ? L"0.00 dB" : L"無効"
+            modern_boost_enabled
+                ? L"0.00 dB"
+                : ui_text(L"無効", L"Disabled")
         );
-        set_control_text(wnd, IDC_DIAG_GAIN, L"待機中");
-        set_control_text(wnd, IDC_DIAG_TRUE_PEAK, L"待機中");
+        set_control_text(wnd, IDC_DIAG_GAIN, ui_text(L"待機中", L"Standby"));
+        set_control_text(wnd, IDC_DIAG_TRUE_PEAK, ui_text(L"待機中", L"Standby"));
         set_control_text(
             wnd,
             IDC_DIAG_COMPRESSOR_REDUCTION,
-            modern_boost_enabled ? L"待機中" : L"無効"
+            modern_boost_enabled
+                ? ui_text(L"待機中", L"Standby")
+                : ui_text(L"無効", L"Disabled")
         );
         set_control_text(
             wnd,
             IDC_DIAG_CLIPPER_REDUCTION,
-            modern_boost_enabled ? L"待機中" : L"無効"
+            modern_boost_enabled
+                ? ui_text(L"待機中", L"Standby")
+                : ui_text(L"無効", L"Disabled")
         );
-        set_control_text(wnd, IDC_DIAG_LIMITER_REDUCTION, L"待機中");
+        set_control_text(
+            wnd,
+            IDC_DIAG_LIMITER_REDUCTION,
+            ui_text(L"待機中", L"Standby")
+        );
         if (final_summary_valid && final_three_band_master_enabled) {
             swprintf_s(
                 text,
-                L"前回 低 %.1f / 中 %.1f / 高 %.1f dB",
+                ui_text(
+                    L"前回 低 %.1f / 中 %.1f / 高 %.1f dB",
+                    L"Previous L %.1f / M %.1f / H %.1f dB"
+                ),
                 final_max_three_band_low_reduction_db,
                 final_max_three_band_mid_reduction_db,
                 final_max_three_band_high_reduction_db
@@ -2053,17 +2406,19 @@ void refresh_diagnostic_controls(HWND wnd) {
             set_control_text(
                 wnd,
                 IDC_DIAG_THREE_BAND_REDUCTION,
-                three_band_master_enabled ? L"待機中" : L"無効"
+                three_band_master_enabled
+                    ? ui_text(L"待機中", L"Standby")
+                    : ui_text(L"無効", L"Disabled")
             );
         }
         swprintf_s(text, L"%.1f ms", latency_ms);
         set_control_text(wnd, IDC_DIAG_LATENCY, text);
 
         if (peak_guard_state == 0) {
-            set_control_text(wnd, IDC_DIAG_PEAK_GUARD, L"無効");
+            set_control_text(wnd, IDC_DIAG_PEAK_GUARD, ui_text(L"無効", L"Disabled"));
         }
         else {
-            set_control_text(wnd, IDC_DIAG_PEAK_GUARD, L"待機中");
+            set_control_text(wnd, IDC_DIAG_PEAK_GUARD, ui_text(L"待機中", L"Standby"));
         }
 
         return;
@@ -2077,17 +2432,24 @@ void refresh_diagnostic_controls(HWND wnd) {
 
     switch (gain_lock_state) {
     case 0:
-        set_control_text(wnd, IDC_DIAG_GAIN_LOCK, L"無効");
+        set_control_text(wnd, IDC_DIAG_GAIN_LOCK, ui_text(L"無効", L"Disabled"));
         break;
     case 2:
-        swprintf_s(text, L"%+.2f dB 固定", locked_gain_db);
+        swprintf_s(
+            text,
+            ui_text(L"%+.2f dB 固定", L"Locked at %+.2f dB"),
+            locked_gain_db
+        );
         set_control_text(wnd, IDC_DIAG_GAIN_LOCK, text);
         break;
     case 3:
         if (normalization_gain_db < -0.01) {
             swprintf_s(
                 text,
-                L"%+.2f→%+.2f 減衰",
+                ui_text(
+                    L"%+.2f→%+.2f 減衰",
+                    L"%+.2f to %+.2f attenuation"
+                ),
                 locked_gain_db,
                 normalization_gain_db
             );
@@ -2095,7 +2457,10 @@ void refresh_diagnostic_controls(HWND wnd) {
         else {
             swprintf_s(
                 text,
-                L"%+.2f→%+.2f 抑制",
+                ui_text(
+                    L"%+.2f→%+.2f 抑制",
+                    L"%+.2f to %+.2f boost limited"
+                ),
                 locked_gain_db,
                 normalization_gain_db
             );
@@ -2105,7 +2470,7 @@ void refresh_diagnostic_controls(HWND wnd) {
     default:
         swprintf_s(
             text,
-            L"残り %.1f秒",
+            ui_text(L"残り %.1f秒", L"%.1f sec remaining"),
             std::max(0.0, gain_lock_remaining_seconds)
         );
         set_control_text(wnd, IDC_DIAG_GAIN_LOCK, text);
@@ -2117,7 +2482,7 @@ void refresh_diagnostic_controls(HWND wnd) {
         set_control_text(wnd, IDC_DIAG_MOMENTARY, text);
     }
     else {
-        set_control_text(wnd, IDC_DIAG_MOMENTARY, L"測定中…");
+        set_control_text(wnd, IDC_DIAG_MOMENTARY, ui_text(L"測定中…", L"Measuring..."));
     }
 
     if (std::isfinite(short_term_lufs) && short_term_lufs > -190.0) {
@@ -2125,7 +2490,7 @@ void refresh_diagnostic_controls(HWND wnd) {
         set_control_text(wnd, IDC_DIAG_SHORT_TERM, text);
     }
     else {
-        set_control_text(wnd, IDC_DIAG_SHORT_TERM, L"測定中…");
+        set_control_text(wnd, IDC_DIAG_SHORT_TERM, ui_text(L"測定中…", L"Measuring..."));
     }
 
     if (std::isfinite(integrated_lufs) && integrated_lufs > -190.0) {
@@ -2133,7 +2498,7 @@ void refresh_diagnostic_controls(HWND wnd) {
         set_control_text(wnd, IDC_DIAG_INTEGRATED, text);
     }
     else {
-        set_control_text(wnd, IDC_DIAG_INTEGRATED, L"測定中…");
+        set_control_text(wnd, IDC_DIAG_INTEGRATED, ui_text(L"測定中…", L"Measuring..."));
     }
 
     if (std::isfinite(output_integrated_lufs) &&
@@ -2142,7 +2507,7 @@ void refresh_diagnostic_controls(HWND wnd) {
         set_control_text(wnd, IDC_DIAG_OUTPUT_INTEGRATED, text);
     }
     else {
-        set_control_text(wnd, IDC_DIAG_OUTPUT_INTEGRATED, L"測定中…");
+        set_control_text(wnd, IDC_DIAG_OUTPUT_INTEGRATED, ui_text(L"測定中…", L"Measuring..."));
     }
 
     if (std::isfinite(target_difference_lu) &&
@@ -2151,7 +2516,7 @@ void refresh_diagnostic_controls(HWND wnd) {
         set_control_text(wnd, IDC_DIAG_TARGET_DIFFERENCE, text);
     }
     else {
-        set_control_text(wnd, IDC_DIAG_TARGET_DIFFERENCE, L"測定中…");
+        set_control_text(wnd, IDC_DIAG_TARGET_DIFFERENCE, ui_text(L"測定中…", L"Measuring..."));
     }
 
     if (std::isfinite(lra_lu) && lra_lu > -190.0) {
@@ -2159,7 +2524,7 @@ void refresh_diagnostic_controls(HWND wnd) {
         set_control_text(wnd, IDC_DIAG_LRA, text);
     }
     else {
-        set_control_text(wnd, IDC_DIAG_LRA, L"測定中…");
+        set_control_text(wnd, IDC_DIAG_LRA, ui_text(L"測定中…", L"Measuring..."));
     }
 
     if (original_compare_active) {
@@ -2168,13 +2533,17 @@ void refresh_diagnostic_controls(HWND wnd) {
             set_control_text(wnd, IDC_DIAG_PROCESSING_RISK, text);
         }
         else {
-            set_control_text(wnd, IDC_DIAG_PROCESSING_RISK, L"原音比較中");
+            set_control_text(
+                wnd,
+                IDC_DIAG_PROCESSING_RISK,
+                ui_text(L"原音比較中", L"Comparing original")
+            );
         }
     }
     else if (adaptive_master_enabled) {
         swprintf_s(
             text,
-            L"%s・%.1f%%",
+            ui_text(L"%s・%.1f%%", L"%s / %.1f%%"),
             processing_risk_to_text(processing_risk_state),
             effective_strength_percent
         );
@@ -2193,7 +2562,7 @@ void refresh_diagnostic_controls(HWND wnd) {
         set_control_text(wnd, IDC_DIAG_SAFETY_REDUCTION, text);
     }
     else {
-        set_control_text(wnd, IDC_DIAG_SAFETY_REDUCTION, L"待機中");
+        set_control_text(wnd, IDC_DIAG_SAFETY_REDUCTION, ui_text(L"待機中", L"Standby"));
     }
 
     if (std::isfinite(applied_gain_db)) {
@@ -2209,13 +2578,16 @@ void refresh_diagnostic_controls(HWND wnd) {
         set_control_text(wnd, IDC_DIAG_COMPRESSOR_REDUCTION, text);
     }
     else {
-        set_control_text(wnd, IDC_DIAG_COMPRESSOR_REDUCTION, L"無効");
+        set_control_text(wnd, IDC_DIAG_COMPRESSOR_REDUCTION, ui_text(L"無効", L"Disabled"));
     }
 
     if (three_band_master_enabled) {
         swprintf_s(
             text,
-            L"低 %.1f / 中 %.1f / 高 %.1f dB",
+            ui_text(
+                L"低 %.1f / 中 %.1f / 高 %.1f dB",
+                L"L %.1f / M %.1f / H %.1f dB"
+            ),
             three_band_low_reduction_db,
             three_band_mid_reduction_db,
             three_band_high_reduction_db
@@ -2223,7 +2595,7 @@ void refresh_diagnostic_controls(HWND wnd) {
         set_control_text(wnd, IDC_DIAG_THREE_BAND_REDUCTION, text);
     }
     else {
-        set_control_text(wnd, IDC_DIAG_THREE_BAND_REDUCTION, L"無効");
+        set_control_text(wnd, IDC_DIAG_THREE_BAND_REDUCTION, ui_text(L"無効", L"Disabled"));
     }
 
     if (modern_boost_enabled && std::isfinite(clipper_reduction_db)) {
@@ -2231,7 +2603,7 @@ void refresh_diagnostic_controls(HWND wnd) {
         set_control_text(wnd, IDC_DIAG_CLIPPER_REDUCTION, text);
     }
     else {
-        set_control_text(wnd, IDC_DIAG_CLIPPER_REDUCTION, L"無効");
+        set_control_text(wnd, IDC_DIAG_CLIPPER_REDUCTION, ui_text(L"無効", L"Disabled"));
     }
 
     if (std::isfinite(limiter_reduction_db)) {
@@ -2250,18 +2622,18 @@ void refresh_diagnostic_controls(HWND wnd) {
         set_control_text(wnd, IDC_DIAG_TRUE_PEAK, text);
     }
     else {
-        set_control_text(wnd, IDC_DIAG_TRUE_PEAK, L"未検出");
+        set_control_text(wnd, IDC_DIAG_TRUE_PEAK, ui_text(L"未検出", L"Not detected"));
     }
 
     switch (peak_guard_state) {
     case 0:
-        set_control_text(wnd, IDC_DIAG_PEAK_GUARD, L"無効");
+        set_control_text(wnd, IDC_DIAG_PEAK_GUARD, ui_text(L"無効", L"Disabled"));
         break;
     case 2:
-        set_control_text(wnd, IDC_DIAG_PEAK_GUARD, L"作動中");
+        set_control_text(wnd, IDC_DIAG_PEAK_GUARD, ui_text(L"作動中", L"Active"));
         break;
     default:
-        set_control_text(wnd, IDC_DIAG_PEAK_GUARD, L"待機");
+        set_control_text(wnd, IDC_DIAG_PEAK_GUARD, ui_text(L"待機", L"Standby"));
         break;
     }
 }
@@ -2475,56 +2847,252 @@ constexpr glossary_entry kGlossaryEntries[] = {
     }
 };
 
+constexpr glossary_entry kGlossaryEntriesEnglish[] = {
+    {
+        L"Reading the diagnostics",
+        L"Current processing state is shown as Normal, Needs adjustment, "
+        L"Auto-adjusting, or Adjustment limit.\r\n\r\n"
+        L"Needs adjustment is a short confirmation period. If the condition "
+        L"continues, automatic safety control adds up to 6 dB of attenuation. "
+        L"The state returns to Normal after conditions remain safe."
+    },
+    {
+        L"EBU R128",
+        L"A loudness-measurement method designed to make the perceived "
+        L"level of programs and music more consistent.\r\n\r\n"
+        L"This component uses R128 principles to adjust playback loudness "
+        L"in real time."
+    },
+    {
+        L"LUFS",
+        L"Short for Loudness Units relative to Full Scale. It represents "
+        L"perceived loudness; values closer to 0 sound louder. "
+        L"For example, -10 LUFS is louder than -18 LUFS."
+    },
+    {
+        L"LU",
+        L"Short for Loudness Unit. It expresses a loudness difference. "
+        L"A difference of 1 LU is numerically equivalent to 1 dB."
+    },
+    {
+        L"Momentary loudness",
+        L"Loudness measured over approximately 400 milliseconds. "
+        L"It follows short events closely and is not intended to represent "
+        L"the loudness of an entire track."
+    },
+    {
+        L"Short-term loudness",
+        L"Loudness measured over approximately three seconds. "
+        L"It is steadier than Momentary loudness and is also used for "
+        L"loudness-matched A/B comparison."
+    },
+    {
+        L"Integrated loudness",
+        L"Average loudness from the start of measurement. Input Integrated "
+        L"is measured before processing and Output Integrated after processing."
+    },
+    {
+        L"Loudness range (LRA)",
+        L"An estimate of the difference between quieter and louder parts "
+        L"of a track. A larger value generally indicates greater dynamics."
+    },
+    {
+        L"True Peak / dBTP",
+        L"An estimate of the actual peak between digital samples. dBTP is "
+        L"the True Peak unit. A ceiling near -1.0 dBTP commonly leaves "
+        L"headroom for playback and conversion."
+    },
+    {
+        L"Target loudness",
+        L"The loudness level the output approaches. Targets closer to 0 "
+        L"sound louder but usually require more compression and peak control."
+    },
+    {
+        L"Maximum R128 boost / attenuation",
+        L"The allowed range of normalization gain. Maximum boost limits "
+        L"how far quiet material can be raised; maximum attenuation limits "
+        L"how far loud material can be reduced."
+    },
+    {
+        L"True Peak limiter look-ahead",
+        L"How far the limiter anticipates a peak. More look-ahead improves "
+        L"peak control but increases DSP latency. The default is 5 ms."
+    },
+    {
+        L"True Peak limiter release",
+        L"How quickly the limiter returns to normal gain after reducing a peak. "
+        L"Very short values can sound unstable; very long values keep gain "
+        L"reduced for longer."
+    },
+    {
+        L"Startup analysis time",
+        L"Time used to measure the beginning of a track and stabilize boost "
+        L"decisions. A temporary Measuring / held state is normal."
+    },
+    {
+        L"Silence guard / boost hold",
+        L"Prevents very quiet passages or silence from being raised excessively. "
+        L"A boost hold is a normal safety action, not an error."
+    },
+    {
+        L"Gain lock",
+        L"Locks normalization gain after loudness stabilizes to reduce movement "
+        L"within the track. Safety attenuation and peak limiting can still apply."
+    },
+    {
+        L"Compressor",
+        L"Automatically reduces sections that are too loud. Higher reduction "
+        L"increases density but can reduce dynamics."
+    },
+    {
+        L"Soft clipper",
+        L"Rounds sharp peaks to preserve loudness. Clipper reduction is the "
+        L"amount of peak shaping, not a count of digital clipping events."
+    },
+    {
+        L"True Peak limiter",
+        L"The final stage that keeps output below the True Peak ceiling. "
+        L"If maximum reduction reaches 3 dB or more, consider lowering the "
+        L"target or Modern strength."
+    },
+    {
+        L"Automatic safety control",
+        L"Adds up to 6 dB of attenuation for every preset when processing "
+        L"becomes too strong. The current amount appears as Automatic safety gain."
+    },
+    {
+        L"Modern Boost",
+        L"A high-density mode combining R128 normalization, compression, "
+        L"soft clipping, and True Peak limiting."
+    },
+    {
+        L"1-Band Adaptive",
+        L"Adjusts Modern Processing strength from input loudness, LRA, and "
+        L"processing load. The selected strength acts as the automatic maximum."
+    },
+    {
+        L"3-Band Adaptive",
+        L"Splits audio into low, mid, and high bands and controls each band "
+        L"separately. Approximate crossovers are 160 Hz and 4 kHz."
+    },
+    {
+        L"Crossover frequencies",
+        L"The boundaries used to split low, mid, and high bands in 3-Band "
+        L"Adaptive mode. This component uses approximately 160 Hz and 4 kHz."
+    },
+    {
+        L"Loudness-matched A/B comparison",
+        L"Matches the Short-term loudness of processed and original audio "
+        L"to reduce level bias when comparing tone and dynamics."
+    },
+    {
+        L"Full-bypass comparison",
+        L"With Loudness match off, holding Compare bypasses all processing "
+        L"in this component. Other DSPs earlier in the chain remain active."
+    },
+    {
+        L"Maximum True Peak",
+        L"The highest processed True Peak measured in the track. A value "
+        L"above +0.01 dBTP or any 0 dBTP exceedance needs attention."
+    },
+    {
+        L"Maximum compressor / clipper / limiter",
+        L"The greatest reduction applied by each stage in the track. "
+        L"Compressor reduction of 6 dB is a strong-processing guide; "
+        L"clipper or limiter reduction of 3 dB needs attention."
+    },
+    {
+        L"0 dBTP exceedance events",
+        L"Number of events where processed True Peak exceeded 0 dBTP. "
+        L"Normally this should remain at zero."
+    },
+    {
+        L"CPU load",
+        L"Estimated processing load of this DSP. It varies with the computer, "
+        L"sample rate, and channel count and is not used for state evaluation."
+    },
+    {
+        L"Invalid-sample protection",
+        L"Replaces NaN, infinite, or extreme samples received from a decoder "
+        L"or earlier DSP with safe values. Normal finite audio is unaffected; "
+        L"the activation count appears in the copied diagnostics."
+    }
+};
+
+static_assert(
+    std::size(kGlossaryEntriesEnglish) == std::size(kGlossaryEntries),
+    "Japanese and English glossary entry counts must match"
+);
+
 struct tooltip_entry {
     int control_id;
-    const wchar_t* text;
+    const wchar_t* japanese;
+    const wchar_t* english;
 };
 
 constexpr tooltip_entry kPresetTooltips[] = {
     {
         IDC_PROFILE_STANDARD,
         L"ナチュラル -18：普段の音楽再生向け。"
-        L"自然な音量感を保ってそろえます。"
+        L"自然な音量感を保ってそろえます。",
+        L"Natural -18: For everyday listening. "
+        L"Balances loudness while preserving a natural sound."
     },
     {
         IDC_PROFILE_STREAMING,
         L"パワーブースト -14：小さい音源を強めに持ち上げ、"
-        L"迫力のある音量感にします。"
+        L"迫力のある音量感にします。",
+        L"Power Boost -14: Raises quieter sources more strongly "
+        L"for a more powerful presentation."
     },
     {
         IDC_PROFILE_BROADCAST,
         L"リラックス -23：全体を控えめにそろえ、"
-        L"長時間でも聴きやすくします。"
+        L"長時間でも聴きやすくします。",
+        L"Relaxed -23: Uses a restrained loudness target "
+        L"for comfortable long listening sessions."
     },
     {
         IDC_PROFILE_NIGHT,
         L"ナイトセーフ -22：夜間向け。"
-        L"音量とピークを低めに抑えます。"
+        L"音量とピークを低めに抑えます。",
+        L"Night Safe -22: Keeps loudness and peaks lower "
+        L"for nighttime listening."
     },
     {
         IDC_PROFILE_MODERN,
         L"モダンブースト -9：圧縮とソフトクリップで"
-        L"高密度な音に近づけます。"
+        L"高密度な音に近づけます。",
+        L"Modern Boost -9: Uses compression and soft clipping "
+        L"for a denser sound."
     },
     {
         IDC_PROFILE_ADAPTIVE,
         L"1バンド・アダプティブ -10：曲のLRAと入力音量を解析し、"
-        L"モダン処理の強度を自動調整します。"
+        L"モダン処理の強度を自動調整します。",
+        L"1-Band Adaptive -10: Analyzes LRA and input loudness "
+        L"to adjust Modern Processing automatically."
     },
     {
         IDC_PROFILE_THREE_BAND,
         L"3バンド・アダプティブ -10：低・中・高域を個別に制御し、"
-        L"低音の潰れと高域のざらつきを抑えます。"
+        L"低音の潰れと高域のざらつきを抑えます。",
+        L"3-Band Adaptive -10: Controls low, mid, and high bands "
+        L"independently to reduce bass pumping and harsh treble."
     },
     {
         IDC_COMPARE_LOUDNESS_MATCH,
         L"オン：ラウドネスをそろえた公平なA/B比較。"
-        L"オフ：このDSPを外す完全バイパス比較。"
+        L"オフ：このDSPを外す完全バイパス比較。",
+        L"On: Loudness-matched A/B comparison. "
+        L"Off: Full bypass comparison for this DSP."
     },
     {
         IDC_ORIGINAL_COMPARE,
         L"押している間だけ比較音へ切り替えます。"
-        L"離すと処理音へ戻ります。"
+        L"離すと処理音へ戻ります。",
+        L"Hold to hear the comparison signal. "
+        L"Release to return to processed audio."
     }
 };
 
@@ -2877,9 +3445,274 @@ const context_help_entry* find_context_help(int control_id) {
     return nullptr;
 }
 
+const wchar_t* english_control_title(
+    int control_id,
+    const wchar_t* fallback
+) {
+    switch (control_id) {
+    case IDC_TARGET_LUFS: return L"Target loudness";
+    case IDC_MAX_BOOST: return L"Maximum R128 boost";
+    case IDC_MAX_ATTENUATION: return L"Maximum R128 attenuation";
+    case IDC_TRUE_PEAK: return L"True Peak limit";
+    case IDC_LOOKAHEAD_MS: return L"Limiter look-ahead";
+    case IDC_LIMITER_RELEASE_MS: return L"Limiter release";
+    case IDC_STARTUP_ANALYSIS_SECONDS: return L"Startup analysis time";
+    case IDC_SILENCE_GUARD_LUFS: return L"Silence guard threshold";
+    case IDC_GAIN_LOCK_SECONDS: return L"Gain-lock detection time";
+    case IDC_GAIN_LOCK_TOLERANCE_LU: return L"Gain-lock tolerance";
+    case IDC_MODERN_STRENGTH: return L"Modern strength / adaptive maximum";
+    case IDC_RESET_EACH_TRACK: return L"Reset measurements on track change";
+    case IDC_ENABLE_PEAK_GUARD: return L"True Peak protection";
+    case IDC_ENABLE_SILENCE_GUARD: return L"Silence guard";
+    case IDC_ENABLE_GAIN_LOCK: return L"Gain lock";
+    case IDC_ENABLE_MODERN_BOOST: return L"Modern Boost";
+    case IDC_ENABLE_ADAPTIVE_MASTER: return L"1-Band Adaptive";
+    case IDC_ENABLE_THREE_BAND_MASTER: return L"3-Band Adaptive";
+    case IDC_DIAG_NORMALIZATION_STATE: return L"R128 normalization";
+    case IDC_DIAG_GAIN_LOCK: return L"Gain lock";
+    case IDC_DIAG_MOMENTARY: return L"Momentary loudness";
+    case IDC_DIAG_SHORT_TERM: return L"Short-term loudness";
+    case IDC_DIAG_INTEGRATED: return L"Input Integrated loudness";
+    case IDC_DIAG_OUTPUT_INTEGRATED: return L"Output Integrated loudness";
+    case IDC_DIAG_TARGET_DIFFERENCE: return L"Difference from target";
+    case IDC_DIAG_LRA: return L"Loudness range (LRA)";
+    case IDC_DIAG_PROCESSING_RISK: return L"Additional processing";
+    case IDC_DIAG_SAFETY_REDUCTION: return L"Automatic safety gain";
+    case IDC_DIAG_GAIN: return L"Total applied gain";
+    case IDC_DIAG_COMPRESSOR_REDUCTION: return L"Compressor reduction";
+    case IDC_DIAG_CLIPPER_REDUCTION: return L"Soft clipper reduction";
+    case IDC_DIAG_LIMITER_REDUCTION: return L"True Peak limiter reduction";
+    case IDC_DIAG_TRUE_PEAK: return L"Processed True Peak";
+    case IDC_DIAG_LATENCY: return L"Processing latency";
+    case IDC_DIAG_PEAK_GUARD: return L"True Peak protection";
+    case IDC_DIAG_CHANNEL_LAYOUT: return L"Channel layout";
+    case IDC_DIAG_THREE_BAND_REDUCTION: return L"3-band reduction";
+    case IDC_DIAG_MAX_TRUE_PEAK: return L"Maximum True Peak";
+    case IDC_DIAG_MAX_COMPRESSOR_REDUCTION:
+        return L"Maximum compressor reduction";
+    case IDC_DIAG_MAX_CLIPPER_REDUCTION:
+        return L"Maximum soft clipper reduction";
+    case IDC_DIAG_MAX_LIMITER_REDUCTION:
+        return L"Maximum True Peak limiter reduction";
+    case IDC_DIAG_SAMPLE_RATE: return L"Sample rate";
+    case IDC_DIAG_CPU_LOAD: return L"CPU load";
+    case IDC_DIAG_CLIP_EVENT_COUNT: return L"0 dBTP exceedance events";
+    case IDC_DIAG_PROCESSING_EVALUATION: return L"Current processing state";
+    case IDC_COMPARE_LOUDNESS_MATCH: return L"Loudness match";
+    case IDC_ORIGINAL_COMPARE: return L"Compare (hold)";
+    case IDC_RESET_MEASUREMENT: return L"Reset measurement";
+    case IDC_COPY_DIAGNOSTICS: return L"Copy diagnostics";
+    case IDC_SHOW_DIAGNOSTIC_HELP: return L"Glossary";
+    default:
+        break;
+    }
+
+    for (const auto& entry : kPrimaryUiText) {
+        if (entry.control_id == control_id) {
+            return entry.english;
+        }
+    }
+
+    return fallback;
+}
+
+const wchar_t* english_context_help_description(int control_id) {
+    switch (control_id) {
+    case IDC_TARGET_LUFS:
+        return L"The loudness target for processed audio. "
+            L"Targets closer to 0 sound louder and can require more peak control.";
+    case IDC_MAX_BOOST:
+        return L"The maximum gain available for raising quiet sources. "
+            L"It also prevents excessive amplification of very quiet material.";
+    case IDC_MAX_ATTENUATION:
+        return L"The maximum amount by which loud sources may be reduced.";
+    case IDC_TRUE_PEAK:
+        return L"The True Peak ceiling after processing. "
+            L"-1.0 dBTP is a common starting point.";
+    case IDC_LOOKAHEAD_MS:
+        return L"How far the limiter looks ahead. More look-ahead improves "
+            L"peak control but adds latency.";
+    case IDC_LIMITER_RELEASE_MS:
+        return L"How quickly the limiter returns to normal gain after a peak.";
+    case IDC_STARTUP_ANALYSIS_SECONDS:
+        return L"Initial analysis time used to stabilize gain decisions. "
+            L"Holding boost during this period is normal.";
+    case IDC_SILENCE_GUARD_LUFS:
+        return L"Boost is held when loudness falls below this threshold, "
+            L"preventing silence and low-level noise from being over-amplified.";
+    case IDC_GAIN_LOCK_SECONDS:
+        return L"How long loudness must remain stable before normalization "
+            L"gain is locked.";
+    case IDC_GAIN_LOCK_TOLERANCE_LU:
+        return L"The allowed loudness variation when deciding whether gain "
+            L"is stable enough to lock.";
+    case IDC_MODERN_STRENGTH:
+        return L"Controls compressor and soft-clipper intensity. "
+            L"For adaptive modes, it acts as the maximum automatic strength.";
+    case IDC_RESET_EACH_TRACK:
+        return L"Resets Integrated loudness, LRA, and maximum values "
+            L"when the next track starts.";
+    case IDC_ENABLE_PEAK_GUARD:
+        return L"Enables the look-ahead limiter to keep output below "
+            L"the selected True Peak limit.";
+    case IDC_ENABLE_SILENCE_GUARD:
+        return L"Prevents large boosts during silence or very quiet passages.";
+    case IDC_ENABLE_GAIN_LOCK:
+        return L"Locks normalization gain after the measurement stabilizes "
+            L"to reduce loudness movement within a track.";
+    case IDC_ENABLE_MODERN_BOOST:
+        return L"Combines compression, soft clipping, and True Peak limiting.";
+    case IDC_ENABLE_ADAPTIVE_MASTER:
+        return L"Adjusts Modern Processing strength from input loudness and LRA.";
+    case IDC_ENABLE_THREE_BAND_MASTER:
+        return L"Controls low, mid, and high bands independently. "
+            L"This is dynamic multiband processing, not a fixed EQ.";
+    case IDC_DIAG_NORMALIZATION_STATE:
+        return L"Shows the current R128 normalization state, including "
+            L"measurement holds and silence protection.";
+    case IDC_DIAG_GAIN_LOCK:
+        return L"Shows gain-lock timing, the locked value, and any safety "
+            L"attenuation or boost suppression.";
+    case IDC_DIAG_MOMENTARY:
+        return L"Loudness measured over approximately 400 milliseconds.";
+    case IDC_DIAG_SHORT_TERM:
+        return L"Loudness measured over approximately three seconds. "
+            L"It is also used for loudness-matched A/B comparison.";
+    case IDC_DIAG_INTEGRATED:
+        return L"Average input loudness from the start of the measurement.";
+    case IDC_DIAG_OUTPUT_INTEGRATED:
+        return L"Average processed-output loudness from the start of the measurement.";
+    case IDC_DIAG_TARGET_DIFFERENCE:
+        return L"Difference between output Integrated loudness and the target. "
+            L"Values near 0 LU are closest to the target.";
+    case IDC_DIAG_LRA:
+        return L"Estimated difference between quieter and louder parts of the track.";
+    case IDC_DIAG_PROCESSING_RISK:
+        return L"Shows Modern or Adaptive processing intensity and A/B compare status.";
+    case IDC_DIAG_SAFETY_REDUCTION:
+        return L"Additional automatic attenuation applied when processing "
+            L"becomes too strong, up to 6 dB for every preset.";
+    case IDC_DIAG_GAIN:
+        return L"Current overall gain, including R128 normalization and safety control.";
+    case IDC_DIAG_COMPRESSOR_REDUCTION:
+        return L"Current compressor gain reduction.";
+    case IDC_DIAG_CLIPPER_REDUCTION:
+        return L"Current amount of peak shaping by the soft clipper.";
+    case IDC_DIAG_LIMITER_REDUCTION:
+        return L"Current gain reduction by the final True Peak limiter.";
+    case IDC_DIAG_TRUE_PEAK:
+        return L"Estimated True Peak after processing, in dBTP.";
+    case IDC_DIAG_LATENCY:
+        return L"DSP latency introduced by look-ahead and related processing.";
+    case IDC_DIAG_PEAK_GUARD:
+        return L"Shows whether True Peak protection is disabled, standing by, or active.";
+    case IDC_DIAG_CHANNEL_LAYOUT:
+        return L"Detected channel layout and whether LFE is excluded "
+            L"from loudness measurement.";
+    case IDC_DIAG_THREE_BAND_REDUCTION:
+        return L"Shows current low, mid, and high-band reduction during playback, "
+            L"or the previous track maxima after playback stops.";
+    case IDC_DIAG_MAX_TRUE_PEAK:
+        return L"Highest processed True Peak measured in the track.";
+    case IDC_DIAG_MAX_COMPRESSOR_REDUCTION:
+        return L"Highest compressor reduction measured in the track.";
+    case IDC_DIAG_MAX_CLIPPER_REDUCTION:
+        return L"Highest soft-clipper peak shaping measured in the track.";
+    case IDC_DIAG_MAX_LIMITER_REDUCTION:
+        return L"Highest True Peak limiter reduction measured in the track.";
+    case IDC_DIAG_SAMPLE_RATE:
+        return L"Current playback sample rate, such as 44100 Hz or 48000 Hz.";
+    case IDC_DIAG_CPU_LOAD:
+        return L"Estimated CPU load of this DSP. It is not used for "
+            L"the processing-state evaluation.";
+    case IDC_DIAG_CLIP_EVENT_COUNT:
+        return L"Number of events where processed True Peak exceeded 0 dBTP. "
+            L"Normally this should remain at zero.";
+    case IDC_DIAG_PROCESSING_EVALUATION:
+        return L"Real-time state: Normal, Needs adjustment, Auto-adjusting, "
+            L"or Adjustment limit. It returns to Normal after conditions remain safe.";
+    case IDC_COMPARE_LOUDNESS_MATCH:
+        return L"When enabled, processed and original audio are loudness matched. "
+            L"When disabled, comparison fully bypasses this DSP.";
+    case IDC_ORIGINAL_COMPARE:
+        return L"Hold to hear the comparison signal; release to return "
+            L"to processed audio.";
+    case IDC_RESET_MEASUREMENT:
+        return L"Restarts Integrated loudness, LRA, and track-maximum measurements "
+            L"from the current playback position.";
+    case IDC_COPY_DIAGNOSTICS:
+        return L"Copies the current settings and diagnostic results to the clipboard.";
+    case IDC_SHOW_DIAGNOSTIC_HELP:
+        return L"Opens definitions and guidance for the terms and values used here.";
+    default:
+        return L"Shows help for this setting or diagnostic value.";
+    }
+}
+
+const wchar_t* context_help_title(const context_help_entry& entry) {
+    return ui_uses_english()
+        ? english_control_title(entry.control_id, L"Item Help")
+        : entry.title;
+}
+
+const wchar_t* context_help_description(
+    const context_help_entry& entry
+) {
+    return ui_uses_english()
+        ? english_context_help_description(entry.control_id)
+        : entry.description;
+}
+
 int help_control_id_from_label(HWND item) {
     if (item == nullptr) {
         return 0;
+    }
+
+    switch (GetDlgCtrlID(item)) {
+    case IDC_LABEL_TARGET_LUFS: return IDC_TARGET_LUFS;
+    case IDC_LABEL_MAX_BOOST: return IDC_MAX_BOOST;
+    case IDC_LABEL_MAX_ATTENUATION: return IDC_MAX_ATTENUATION;
+    case IDC_LABEL_TRUE_PEAK: return IDC_TRUE_PEAK;
+    case IDC_LABEL_LOOKAHEAD: return IDC_LOOKAHEAD_MS;
+    case IDC_LABEL_LIMITER_RELEASE: return IDC_LIMITER_RELEASE_MS;
+    case IDC_LABEL_STARTUP: return IDC_STARTUP_ANALYSIS_SECONDS;
+    case IDC_LABEL_SILENCE_THRESHOLD: return IDC_SILENCE_GUARD_LUFS;
+    case IDC_LABEL_GAIN_LOCK_SECONDS: return IDC_GAIN_LOCK_SECONDS;
+    case IDC_LABEL_GAIN_LOCK_TOLERANCE: return IDC_GAIN_LOCK_TOLERANCE_LU;
+    case IDC_LABEL_MODERN_STRENGTH: return IDC_MODERN_STRENGTH;
+    case IDC_LABEL_DIAG_NORMALIZATION: return IDC_DIAG_NORMALIZATION_STATE;
+    case IDC_LABEL_DIAG_GAIN_LOCK: return IDC_DIAG_GAIN_LOCK;
+    case IDC_LABEL_DIAG_MOMENTARY: return IDC_DIAG_MOMENTARY;
+    case IDC_LABEL_DIAG_SHORT_TERM: return IDC_DIAG_SHORT_TERM;
+    case IDC_LABEL_DIAG_INPUT_INT: return IDC_DIAG_INTEGRATED;
+    case IDC_LABEL_DIAG_OUTPUT_INT: return IDC_DIAG_OUTPUT_INTEGRATED;
+    case IDC_LABEL_DIAG_TARGET_DIFF: return IDC_DIAG_TARGET_DIFFERENCE;
+    case IDC_LABEL_DIAG_LRA: return IDC_DIAG_LRA;
+    case IDC_LABEL_DIAG_GAIN: return IDC_DIAG_GAIN;
+    case IDC_LABEL_DIAG_PROCESSING: return IDC_DIAG_PROCESSING_RISK;
+    case IDC_LABEL_DIAG_SAFETY: return IDC_DIAG_SAFETY_REDUCTION;
+    case IDC_LABEL_DIAG_COMPRESSOR: return IDC_DIAG_COMPRESSOR_REDUCTION;
+    case IDC_LABEL_DIAG_CLIPPER: return IDC_DIAG_CLIPPER_REDUCTION;
+    case IDC_LABEL_DIAG_LIMITER: return IDC_DIAG_LIMITER_REDUCTION;
+    case IDC_LABEL_DIAG_TRUE_PEAK: return IDC_DIAG_TRUE_PEAK;
+    case IDC_LABEL_DIAG_LATENCY: return IDC_DIAG_LATENCY;
+    case IDC_LABEL_DIAG_PEAK_GUARD: return IDC_DIAG_PEAK_GUARD;
+    case IDC_LABEL_DIAG_SAMPLE_RATE: return IDC_DIAG_SAMPLE_RATE;
+    case IDC_LABEL_DIAG_CHANNEL_LAYOUT: return IDC_DIAG_CHANNEL_LAYOUT;
+    case IDC_LABEL_DIAG_CPU: return IDC_DIAG_CPU_LOAD;
+    case IDC_LABEL_DIAG_CLIP_EVENTS: return IDC_DIAG_CLIP_EVENT_COUNT;
+    case IDC_LABEL_DIAG_EVALUATION: return IDC_DIAG_PROCESSING_EVALUATION;
+    case IDC_LABEL_DIAG_MAX_TRUE_PEAK: return IDC_DIAG_MAX_TRUE_PEAK;
+    case IDC_LABEL_DIAG_MAX_COMPRESSOR:
+        return IDC_DIAG_MAX_COMPRESSOR_REDUCTION;
+    case IDC_LABEL_DIAG_MAX_CLIPPER:
+        return IDC_DIAG_MAX_CLIPPER_REDUCTION;
+    case IDC_LABEL_DIAG_MAX_LIMITER:
+        return IDC_DIAG_MAX_LIMITER_REDUCTION;
+    case IDC_LABEL_DIAG_THREE_BAND:
+        return IDC_DIAG_THREE_BAND_REDUCTION;
+    default:
+        break;
     }
 
     wchar_t text[128] = {};
@@ -2921,6 +3754,11 @@ INT_PTR CALLBACK text_info_dialog_proc(
             reinterpret_cast<LONG_PTR>(dark_mode)
         );
         dark_mode->AddDialogWithControls(wnd);
+        SetDlgItemTextW(
+            wnd,
+            IDOK,
+            ui_text(L"閉じる", L"Close")
+        );
 
         if (data != nullptr) {
             if (data->title != nullptr) {
@@ -3001,6 +3839,38 @@ INT_PTR CALLBACK confirm_defaults_dialog_proc(
         );
         dark_mode->AddDialogWithControls(wnd);
 
+        SetWindowTextW(
+            wnd,
+            ui_text(
+                L"初期設定の確認",
+                L"Confirm default settings"
+            )
+        );
+        SetDlgItemTextW(
+            wnd,
+            IDC_CONFIRM_DEFAULTS_TEXT,
+            ui_text(
+                L"現在の未適用変更を破棄し、すべての設定欄を"
+                L"初期設定へ戻します。\r\n"
+                L"［初期設定に戻す］のあと［適用］を押すと、"
+                L"再生中のDSPへ反映されます。\r\n続けますか？",
+                L"This discards current unapplied changes and restores "
+                L"every setting to its default value.\r\n"
+                L"After selecting Restore Defaults, select Apply to update "
+                L"the active DSP.\r\nContinue?"
+            )
+        );
+        SetDlgItemTextW(
+            wnd,
+            IDOK,
+            ui_text(L"初期設定に戻す", L"Restore Defaults")
+        );
+        SetDlgItemTextW(
+            wnd,
+            IDCANCEL,
+            ui_text(L"取消", L"Cancel")
+        );
+
         SetFocus(GetDlgItem(wnd, IDCANCEL));
         return FALSE;
 
@@ -3035,7 +3905,7 @@ bool confirm_restore_defaults(HWND owner) {
 }
 
 constexpr wchar_t kLicenseCreditsText[] =
-    L"R128 リアルタイム音量ノーマライザー 1.5.3\r\n"
+    L"R128 リアルタイム音量ノーマライザー 1.6.0\r\n"
     L"\r\n"
     L"作者：Maximum\r\n"
     L"Copyright (c) 2026 Maximum\r\n"
@@ -3050,6 +3920,24 @@ constexpr wchar_t kLicenseCreditsText[] =
     L"\r\n"
     L"全文はパッケージ内のlicense.txtと\r\n"
     L"THIRD-PARTY-NOTICES.txtをご覧ください。";
+
+constexpr wchar_t kLicenseCreditsTextEnglish[] =
+    L"R128 Real-time Loudness Normalizer 1.6.0\r\n"
+    L"\r\n"
+    L"Author: Maximum\r\n"
+    L"Copyright (c) 2026 Maximum\r\n"
+    L"License: MIT License\r\n"
+    L"\r\n"
+    L"Acknowledgment of prior work:\r\n"
+    L"EBU R128 Normalizer by mudlord\r\n"
+    L"This is an independently developed, unofficial component.\r\n"
+    L"\r\n"
+    L"Built with the foobar2000 SDK.\r\n"
+    L"No affiliation with or endorsement by mudlord or foobar2000 "
+    L"is implied.\r\n"
+    L"\r\n"
+    L"See license.txt and THIRD-PARTY-NOTICES.txt in the package "
+    L"for the full notices.";
 
 void show_context_help(HWND wnd, HWND item) {
     int control_id = item != nullptr ? GetDlgCtrlID(item) : 0;
@@ -3072,18 +3960,23 @@ void show_context_help(HWND wnd, HWND item) {
     if (entry != nullptr) {
         show_text_info_dialog(
             wnd,
-            entry->title,
-            entry->description
+            context_help_title(*entry),
+            context_help_description(*entry)
         );
         return;
     }
 
     show_text_info_dialog(
         wnd,
-        L"項目ヘルプ",
-        L"説明を確認したい設定欄、診断値、チェック項目、"
-        L"またはプリセットをクリックしてください。\r\n\r\n"
-        L"詳しい用語一覧は画面下部の「用語集」から開けます。"
+        ui_text(L"項目ヘルプ", L"Item Help"),
+        ui_text(
+            L"説明を確認したい設定欄、診断値、チェック項目、"
+            L"またはプリセットをクリックしてください。\r\n\r\n"
+            L"詳しい用語一覧は画面下部の「用語集」から開けます。",
+            L"Select a setting, diagnostic value, check box, or preset "
+            L"to view its explanation.\r\n\r\n"
+            L"Open Glossary at the bottom of the window for detailed terms."
+        )
     );
 }
 
@@ -3162,7 +4055,7 @@ HWND create_help_tooltips(HWND dialog) {
             tooltip,
             dialog,
             entry.control_id,
-            entry.text
+            ui_text(entry.japanese, entry.english)
         );
     }
 
@@ -3181,7 +4074,7 @@ HWND create_help_tooltips(HWND dialog) {
                 tooltip,
                 dialog,
                 entry.control_id,
-                entry.description
+                context_help_description(entry)
             );
         }
     }
@@ -3203,15 +4096,22 @@ void update_glossary_description(HWND wnd) {
         SetDlgItemTextW(
             wnd,
             IDC_GLOSSARY_DESCRIPTION,
-            L"左の用語を選択してください。"
+            ui_text(
+                L"左の用語を選択してください。",
+                L"Select a term from the list."
+            )
         );
         return;
     }
 
+    const auto& entries = ui_uses_english()
+        ? kGlossaryEntriesEnglish
+        : kGlossaryEntries;
+
     SetDlgItemTextW(
         wnd,
         IDC_GLOSSARY_DESCRIPTION,
-        kGlossaryEntries[static_cast<t_size>(selection)].description
+        entries[static_cast<t_size>(selection)].description
     );
 }
 
@@ -3226,7 +4126,7 @@ INT_PTR CALLBACK glossary_dialog_proc(
     );
 
     switch (message) {
-    case WM_INITDIALOG:
+    case WM_INITDIALOG: {
         dark_mode = new fb2k::CCoreDarkModeHooks();
         SetWindowLongPtrW(
             wnd,
@@ -3235,7 +4135,32 @@ INT_PTR CALLBACK glossary_dialog_proc(
         );
         dark_mode->AddDialogWithControls(wnd);
 
-        for (const auto& entry : kGlossaryEntries) {
+        SetWindowTextW(
+            wnd,
+            ui_text(
+                L"R128 音量ノーマライザー 用語集",
+                L"R128 Loudness Normalizer Glossary"
+            )
+        );
+        SetDlgItemTextW(
+            wnd,
+            IDC_GLOSSARY_INSTRUCTION,
+            ui_text(
+                L"左の用語を選ぶと、このコンポーネント内での意味と読み方を表示します。",
+                L"Select a term on the left to view its meaning and how it is used in this component."
+            )
+        );
+        SetDlgItemTextW(
+            wnd,
+            IDOK,
+            ui_text(L"閉じる", L"Close")
+        );
+
+        const auto& entries = ui_uses_english()
+            ? kGlossaryEntriesEnglish
+            : kGlossaryEntries;
+
+        for (const auto& entry : entries) {
             SendDlgItemMessageW(
                 wnd,
                 IDC_GLOSSARY_LIST,
@@ -3254,6 +4179,7 @@ INT_PTR CALLBACK glossary_dialog_proc(
         );
         update_glossary_description(wnd);
         return TRUE;
+    }
 
     case WM_COMMAND:
         if (LOWORD(wp) == IDC_GLOSSARY_LIST &&
@@ -3363,7 +4289,10 @@ void mark_unapplied_changes(
     set_control_text(
         wnd,
         IDC_APPLY_STATUS,
-        L"未適用の変更があります"
+        ui_text(
+            L"未適用の変更があります",
+            L"There are unapplied changes"
+        )
     );
 }
 
@@ -3408,62 +4337,83 @@ bool read_settings_from_dialog(
 ) {
     if (!read_float(
             wnd, IDC_TARGET_LUFS, -36.0f, -5.0f,
-            value.target_lufs, L"目標ラウドネス")) {
+            value.target_lufs,
+            ui_text(L"目標ラウドネス", L"Target loudness"))) {
         return false;
     }
     if (!read_float(
             wnd, IDC_MAX_BOOST, 0.0f, 24.0f,
-            value.max_boost_db, L"最大増幅量")) {
+            value.max_boost_db,
+            ui_text(L"最大増幅量", L"Maximum boost"))) {
         return false;
     }
     if (!read_float(
             wnd, IDC_MAX_ATTENUATION, 0.0f, 36.0f,
-            value.max_attenuation_db, L"最大減衰量")) {
+            value.max_attenuation_db,
+            ui_text(L"最大減衰量", L"Maximum attenuation"))) {
         return false;
     }
     if (!read_float(
             wnd, IDC_TRUE_PEAK, -12.0f, 0.0f,
-            value.true_peak_limit_dbtp, L"True Peak上限")) {
+            value.true_peak_limit_dbtp,
+            ui_text(L"True Peak上限", L"True Peak limit"))) {
         return false;
     }
     if (!read_float(
             wnd, IDC_LOOKAHEAD_MS, 0.0f, 20.0f,
-            value.lookahead_ms, L"先読み時間")) {
+            value.lookahead_ms,
+            ui_text(L"先読み時間", L"Look-ahead time"))) {
         return false;
     }
     if (!read_float(
             wnd, IDC_LIMITER_RELEASE_MS, 20.0f, 1000.0f,
-            value.limiter_release_ms, L"リミッター解放時間")) {
+            value.limiter_release_ms,
+            ui_text(L"リミッター解放時間", L"Limiter release time"))) {
         return false;
     }
     if (!read_float(
             wnd, IDC_STARTUP_ANALYSIS_SECONDS, 0.0f, 15.0f,
             value.startup_analysis_seconds,
-            L"曲頭の測定安定化時間")) {
+            ui_text(
+                L"曲頭の測定安定化時間",
+                L"Startup analysis time"
+            ))) {
         return false;
     }
     if (!read_float(
             wnd, IDC_SILENCE_GUARD_LUFS, -70.0f, -20.0f,
             value.silence_guard_lufs,
-            L"静音保護しきい値")) {
+            ui_text(
+                L"静音保護しきい値",
+                L"Silence guard threshold"
+            ))) {
         return false;
     }
     if (!read_float(
             wnd, IDC_GAIN_LOCK_SECONDS, 0.0f, 60.0f,
             value.gain_lock_seconds,
-            L"補正ゲイン固定判定時間")) {
+            ui_text(
+                L"補正ゲイン固定判定時間",
+                L"Gain-lock detection time"
+            ))) {
         return false;
     }
     if (!read_float(
             wnd, IDC_GAIN_LOCK_TOLERANCE_LU, 0.1f, 3.0f,
             value.gain_lock_tolerance_lu,
-            L"固定許容変動")) {
+            ui_text(
+                L"固定許容変動",
+                L"Gain-lock tolerance"
+            ))) {
         return false;
     }
     if (!read_float(
             wnd, IDC_MODERN_STRENGTH, 0.0f, 100.0f,
             value.modern_strength_percent,
-            L"モダン強度")) {
+            ui_text(
+                L"モダン強度",
+                L"Modern processing strength"
+            ))) {
         return false;
     }
 
@@ -3541,7 +4491,10 @@ bool apply_dialog_settings(
     set_control_text(
         wnd,
         IDC_APPLY_STATUS,
-        L"設定を適用しました"
+        ui_text(
+            L"設定を適用しました",
+            L"Settings applied"
+        )
     );
 
     return true;
@@ -3600,17 +4553,23 @@ INT_PTR CALLBACK config_dialog_proc(HWND wnd, UINT message, WPARAM wp, LPARAM lp
             settings_to_dialog(wnd, context->value);
             context->updating_controls = false;
 
-            update_profile_indicator(
+            apply_primary_ui_language(
                 wnd,
-                context->value,
+                &context->value,
                 false
             );
+        }
+        else {
+            apply_primary_ui_language(wnd, nullptr, false);
         }
         set_apply_button_state(wnd, context, false);
         set_control_text(
             wnd,
             IDC_APPLY_STATUS,
-            L"変更後は［適用］または［OK］"
+            ui_text(
+                L"変更後は［適用］または［OK］",
+                L"After changes, select Apply or OK"
+            )
         );
         refresh_diagnostic_controls(wnd);
         SetTimer(
@@ -3721,6 +4680,53 @@ INT_PTR CALLBACK config_dialog_proc(HWND wnd, UINT message, WPARAM wp, LPARAM lp
         return FALSE;
 
     case WM_COMMAND:
+        if (LOWORD(wp) == IDC_DISPLAY_LANGUAGE &&
+            HIWORD(wp) == CBN_SELCHANGE) {
+            const LRESULT selection = SendDlgItemMessageW(
+                wnd,
+                IDC_DISPLAY_LANGUAGE,
+                CB_GETCURSEL,
+                0,
+                0
+            );
+
+            if (selection >= 0 && selection <= 2) {
+                g_cfg_display_language =
+                    static_cast<t_int32>(selection);
+
+                apply_primary_ui_language(
+                    wnd,
+                    context != nullptr ? &context->value : nullptr,
+                    false
+                );
+                if (context != nullptr) {
+                    if (context->tooltip != nullptr) {
+                        DestroyWindow(context->tooltip);
+                    }
+                    context->tooltip = create_help_tooltips(wnd);
+                    if (context->tooltip != nullptr) {
+                        SetWindowTheme(
+                            context->tooltip,
+                            context->dark_mode
+                                ? L"DarkMode_Explorer"
+                                : nullptr,
+                            nullptr
+                        );
+                    }
+                }
+                refresh_diagnostic_controls(wnd);
+                set_control_text(
+                    wnd,
+                    IDC_APPLY_STATUS,
+                    ui_text(
+                        L"表示言語を変更しました",
+                        L"Display language updated"
+                    )
+                );
+            }
+            return TRUE;
+        }
+
         if (LOWORD(wp) == IDC_ORIGINAL_COMPARE) {
             const WORD notification = HIWORD(wp);
 
@@ -3739,8 +4745,14 @@ INT_PTR CALLBACK config_dialog_proc(HWND wnd, UINT message, WPARAM wp, LPARAM lp
                     wnd,
                     IDC_APPLY_STATUS,
                     loudness_matched
-                        ? L"A/B音量一致中"
-                        : L"原音比較中"
+                        ? ui_text(
+                            L"A/B音量一致中",
+                            L"A/B loudness matching"
+                        )
+                        : ui_text(
+                            L"原音比較中",
+                            L"Comparing original audio"
+                        )
                 );
                 return TRUE;
             }
@@ -3756,8 +4768,14 @@ INT_PTR CALLBACK config_dialog_proc(HWND wnd, UINT message, WPARAM wp, LPARAM lp
                     IDC_APPLY_STATUS,
                     context != nullptr &&
                     context->has_unapplied_changes
-                        ? L"未適用の変更があります"
-                        : L"処理音へ戻りました"
+                        ? ui_text(
+                            L"未適用の変更があります",
+                            L"There are unapplied changes"
+                        )
+                        : ui_text(
+                            L"処理音へ戻りました",
+                            L"Returned to processed audio"
+                        )
                 );
                 return TRUE;
             }
@@ -3862,7 +4880,10 @@ INT_PTR CALLBACK config_dialog_proc(HWND wnd, UINT message, WPARAM wp, LPARAM lp
             set_control_text(
                 wnd,
                 IDC_DIAG_NORMALIZATION_STATE,
-                L"測定リセットを要求しました"
+                ui_text(
+                    L"測定リセットを要求しました",
+                    L"Measurement reset requested"
+                )
             );
             return TRUE;
 
@@ -3872,16 +4893,28 @@ INT_PTR CALLBACK config_dialog_proc(HWND wnd, UINT message, WPARAM wp, LPARAM lp
                     build_diagnostic_report())) {
                 MessageBoxW(
                     wnd,
-                    L"診断結果をクリップボードへコピーしました。",
-                    L"診断結果のコピー",
+                    ui_text(
+                        L"診断結果をクリップボードへコピーしました。",
+                        L"Diagnostic results copied to the clipboard."
+                    ),
+                    ui_text(
+                        L"診断結果のコピー",
+                        L"Copy diagnostics"
+                    ),
                     MB_OK | MB_ICONINFORMATION
                 );
             }
             else {
                 MessageBoxW(
                     wnd,
-                    L"クリップボードへコピーできませんでした。",
-                    L"診断結果のコピー",
+                    ui_text(
+                        L"クリップボードへコピーできませんでした。",
+                        L"Could not copy to the clipboard."
+                    ),
+                    ui_text(
+                        L"診断結果のコピー",
+                        L"Copy diagnostics"
+                    ),
                     MB_OK | MB_ICONWARNING
                 );
             }
@@ -3901,8 +4934,13 @@ INT_PTR CALLBACK config_dialog_proc(HWND wnd, UINT message, WPARAM wp, LPARAM lp
         case IDC_SHOW_LICENSE:
             show_text_info_dialog(
                 wnd,
-                L"ライセンスとクレジット",
-                kLicenseCreditsText
+                ui_text(
+                    L"ライセンスとクレジット",
+                    L"License and Credits"
+                ),
+                ui_uses_english()
+                    ? kLicenseCreditsTextEnglish
+                    : kLicenseCreditsText
             );
             return TRUE;
 
@@ -4043,7 +5081,15 @@ public:
     }
 
     static void g_get_name(pfc::string_base& out) {
-        out = "R128 \xE9\x9F\xB3\xE9\x87\x8F\xE3\x83\x8E\xE3\x83\xBC\xE3\x83\x9E\xE3\x83\xA9\xE3\x82\xA4\xE3\x82\xB6\xE3\x83\xBC";
+        if (ui_uses_english()) {
+            out = "R128 Loudness Normalizer";
+        }
+        else {
+            out = "R128 \xE9\x9F\xB3\xE9\x87\x8F"
+                "\xE3\x83\x8E\xE3\x83\xBC\xE3\x83\x9E"
+                "\xE3\x83\xA9\xE3\x82\xA4\xE3\x82\xB6"
+                "\xE3\x83\xBC";
+        }
     }
 
     static bool g_get_default_preset(dsp_preset& out) {
@@ -7525,10 +8571,18 @@ public:
         if (match_count != 1) {
             MessageBoxW(
                 m_dialog,
-                L"設定画面を開いている間にDSPチェーンが"
-                L"変更されたため、設定を適用できませんでした。\n\n"
-                L"DSPの登録状態を確認して、もう一度お試しください。",
-                L"R128 音量ノーマライザー",
+                ui_text(
+                    L"設定画面を開いている間にDSPチェーンが"
+                    L"変更されたため、設定を適用できませんでした。\n\n"
+                    L"DSPの登録状態を確認して、もう一度お試しください。",
+                    L"The DSP chain changed while the settings window "
+                    L"was open, so the settings could not be applied.\n\n"
+                    L"Check the DSP chain and try again."
+                ),
+                ui_text(
+                    L"R128 音量ノーマライザー",
+                    L"R128 Loudness Normalizer"
+                ),
                 MB_OK | MB_ICONWARNING
             );
             return;
@@ -7607,11 +8661,18 @@ void show_r128_settings_from_main_menu() {
     if (match_count == 0) {
         MessageBoxW(
             owner,
-            L"R128 音量ノーマライザーは、現在のDSPチェーンに"
-            L"追加されていません。\n\n"
-            L"Playback → DSP Managerで追加してから、"
-            L"もう一度このメニューを開いてください。",
-            L"R128 音量ノーマライザー",
+            ui_text(
+                L"R128 音量ノーマライザーは、現在のDSPチェーンに"
+                L"追加されていません。\n\n"
+                L"Playback → DSP Managerで追加してから、"
+                L"もう一度このメニューを開いてください。",
+                L"R128 Loudness Normalizer is not in the current DSP chain.\n\n"
+                L"Add it in Playback > DSP Manager, then open this command again."
+            ),
+            ui_text(
+                L"R128 音量ノーマライザー",
+                L"R128 Loudness Normalizer"
+            ),
             MB_OK | MB_ICONINFORMATION
         );
         return;
@@ -7620,11 +8681,19 @@ void show_r128_settings_from_main_menu() {
     if (match_count > 1) {
         MessageBoxW(
             owner,
-            L"現在のDSPチェーンにR128 音量ノーマライザーが"
-            L"複数登録されています。\n\n"
-            L"誤った設定を変更しないため、DSP Managerから"
-            L"対象を選んで設定してください。",
-            L"R128 音量ノーマライザー",
+            ui_text(
+                L"現在のDSPチェーンにR128 音量ノーマライザーが"
+                L"複数登録されています。\n\n"
+                L"誤った設定を変更しないため、DSP Managerから"
+                L"対象を選んで設定してください。",
+                L"More than one R128 Loudness Normalizer is present "
+                L"in the current DSP chain.\n\n"
+                L"Open DSP Manager and select the instance you want to configure."
+            ),
+            ui_text(
+                L"R128 音量ノーマライザー",
+                L"R128 Loudness Normalizer"
+            ),
             MB_OK | MB_ICONWARNING
         );
         return;
@@ -7664,8 +8733,14 @@ void show_r128_settings_from_main_menu() {
 
         MessageBoxW(
             owner,
-            L"設定画面を作成できませんでした。",
-            L"R128 音量ノーマライザー",
+            ui_text(
+                L"設定画面を作成できませんでした。",
+                L"Could not create the settings window."
+            ),
+            ui_text(
+                L"R128 音量ノーマライザー",
+                L"R128 Loudness Normalizer"
+            ),
             MB_OK | MB_ICONERROR
         );
         return;
@@ -7701,12 +8776,17 @@ public:
             uBugCheck();
         }
 
-        out =
-            "R128 \xE9\x9F\xB3\xE9\x87\x8F"
-            "\xE3\x83\x8E\xE3\x83\xBC\xE3\x83\x9E"
-            "\xE3\x83\xA9\xE3\x82\xA4\xE3\x82\xB6"
-            "\xE3\x83\xBC\xE3\x81\xAE\xE8\xA8\xAD"
-            "\xE5\xAE\x9A...";
+        if (ui_uses_english()) {
+            out = "R128 Loudness Normalizer Settings...";
+        }
+        else {
+            out =
+                "R128 \xE9\x9F\xB3\xE9\x87\x8F"
+                "\xE3\x83\x8E\xE3\x83\xBC\xE3\x83\x9E"
+                "\xE3\x83\xA9\xE3\x82\xA4\xE3\x82\xB6"
+                "\xE3\x83\xBC\xE3\x81\xAE\xE8\xA8\xAD"
+                "\xE5\xAE\x9A...";
+        }
     }
 
     bool get_description(
@@ -7717,15 +8797,22 @@ public:
             uBugCheck();
         }
 
-        out =
-            "R128 \xE9\x9F\xB3\xE9\x87\x8F"
-            "\xE3\x83\x8E\xE3\x83\xBC\xE3\x83\x9E"
-            "\xE3\x83\xA9\xE3\x82\xA4\xE3\x82\xB6"
-            "\xE3\x83\xBC\xE3\x81\xAE\xE8\xA8\xAD"
-            "\xE5\xAE\x9A\xE7\x94\xBB\xE9\x9D\xA2"
-            "\xE3\x82\x92\xE7\x9B\xB4\xE6\x8E\xA5"
-            "\xE9\x96\x8B\xE3\x81\x8D\xE3\x81\xBE"
-            "\xE3\x81\x99\xE3\x80\x82";
+        if (ui_uses_english()) {
+            out =
+                "Opens the R128 Loudness Normalizer settings "
+                "dialog directly.";
+        }
+        else {
+            out =
+                "R128 \xE9\x9F\xB3\xE9\x87\x8F"
+                "\xE3\x83\x8E\xE3\x83\xBC\xE3\x83\x9E"
+                "\xE3\x83\xA9\xE3\x82\xA4\xE3\x82\xB6"
+                "\xE3\x83\xBC\xE3\x81\xAE\xE8\xA8\xAD"
+                "\xE5\xAE\x9A\xE7\x94\xBB\xE9\x9D\xA2"
+                "\xE3\x82\x92\xE7\x9B\xB4\xE6\x8E\xA5"
+                "\xE9\x96\x8B\xE3\x81\x8D\xE3\x81\xBE"
+                "\xE3\x81\x99\xE3\x80\x82";
+        }
         return true;
     }
 

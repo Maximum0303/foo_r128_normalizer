@@ -146,3 +146,9 @@
 #define IDC_LABEL_DIAG_MAX_LIMITER         1176
 #define IDC_DIAG_LEFT_HEADER               1177
 #define IDC_DIAG_RIGHT_HEADER              1178
+#define IDC_LANGUAGE_LABEL                 1179
+#define IDC_DISPLAY_LANGUAGE               1180
+#define IDC_PRESET_GROUP                   1181
+#define IDC_COMPARE_GROUP                  1182
+#define IDC_CONFIRM_DEFAULTS_TEXT          1183
+#define IDC_GLOSSARY_INSTRUCTION           1184

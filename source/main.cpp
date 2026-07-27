@@ -2,12 +2,23 @@
 
 DECLARE_COMPONENT_VERSION(
     "R128 \xE3\x83\xAA\xE3\x82\xA2\xE3\x83\xAB\xE3\x82\xBF\xE3\x82\xA4\xE3\x83\xA0\xE9\x9F\xB3\xE9\x87\x8F\xE3\x83\x8E\xE3\x83\xBC\xE3\x83\x9E\xE3\x83\xA9\xE3\x82\xA4\xE3\x82\xB6\xE3\x83\xBC",
-    "1.5.4",
+    "1.6.0",
+    "R128-based real-time loudness normalizer for foobar2000.\n"
     "foobar2000用のR128ベース・リアルタイム音量ノーマライザーです。\n"
     "\n"
     "Author: Maximum\n"
     "Copyright (c) 2026 Maximum\n"
     "License: MIT License\n"
+    "\n"
+    "v1.6.0 adds Automatic / Japanese / English display-language selection.\n"
+    "The settings UI, diagnostics, help, glossary, messages, tooltips,\n"
+    "license information, DSP name, and Playback menu support English.\n"
+    "\n"
+    "v1.6.0では、表示言語の自動／日本語／English切り替えと、\n"
+    "設定画面、診断、ヘルプ、用語集、各メッセージ、ツールチップ、\n"
+    "ライセンス、DSP名、Playbackメニューの英語表示に対応しました。\n"
+    "言語設定はDSPプリセットとは別に保存されるため、\n"
+    "設定保存形式v7と既存プリセットの互換性を維持します。\n"
     "\n"
     "v1.5.4では、処理負荷をリアルタイム監視し、\n"
     "要調整相当が続いた場合に自動安全補正を行います。\n"

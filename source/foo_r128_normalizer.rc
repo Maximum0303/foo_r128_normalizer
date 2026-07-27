@@ -4,7 +4,7 @@
 #include <commctrl.h>
 #include "resource.h"
 
-IDD_R128_CONFIG DIALOGEX 0, 0, 520, 327
+IDD_R128_CONFIG DIALOGEX 0, 0, 520, 349
 STYLE DS_SHELLFONT | DS_MODALFRAME | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU
 EXSTYLE WS_EX_CONTEXTHELP | WS_EX_CONTROLPARENT
 CAPTION "R128 音量ノーマライザー"
@@ -280,7 +280,7 @@ BEGIN
                     400, 180, 102, 10, SS_LEFTNOWORDWRAP | SS_NOPREFIX
 
     GROUPBOX        "プリセット（上段：標準4種／下段：追加処理3種）",
-                    -1, 8, 201, 504, 59
+                    IDC_PRESET_GROUP, 8, 201, 504, 59
     PUSHBUTTON      "ナチュラル -18", IDC_PROFILE_STANDARD,
                     14, 214, 116, 17
     PUSHBUTTON      "パワーブースト -14", IDC_PROFILE_STREAMING,
@@ -297,7 +297,7 @@ BEGIN
                     338, 234, 168, 17
 
     GROUPBOX        "選択中のプリセット／比較",
-                    -1, 8, 263, 504, 31
+                    IDC_COMPARE_GROUP, 8, 263, 504, 31
     LTEXT           "現在: ナチュラル -18",
                     IDC_PROFILE_DESCRIPTION,
                     14, 275, 200, 12, SS_LEFTNOWORDWRAP | SS_NOPREFIX
@@ -309,23 +309,28 @@ BEGIN
     PUSHBUTTON      "ライセンス", IDC_SHOW_LICENSE,
                     432, 271, 74, 17
 
-    PUSHBUTTON      "測定リセット", IDC_RESET_MEASUREMENT,
-                    8, 303, 72, 15
-    PUSHBUTTON      "診断コピー", IDC_COPY_DIAGNOSTICS,
-                    84, 303, 68, 15
+    LTEXT           "表示言語：", IDC_LANGUAGE_LABEL,
+                    8, 306, 62, 12
+    COMBOBOX        IDC_DISPLAY_LANGUAGE, 72, 302, 142, 80,
+                    CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
     LTEXT           "変更後は［適用］または［OK］",
                     IDC_APPLY_STATUS,
-                    158, 305, 130, 12, SS_LEFTNOWORDWRAP | SS_NOPREFIX
+                    220, 306, 292, 12, SS_LEFTNOWORDWRAP | SS_NOPREFIX
+
+    PUSHBUTTON      "測定リセット", IDC_RESET_MEASUREMENT,
+                    8, 325, 72, 15
+    PUSHBUTTON      "診断コピー", IDC_COPY_DIAGNOSTICS,
+                    84, 325, 68, 15
     PUSHBUTTON      "用語集", IDC_SHOW_DIAGNOSTIC_HELP,
-                    292, 303, 58, 15
+                    292, 325, 58, 15
     PUSHBUTTON      "初期設定", IDC_DEFAULTS,
-                    354, 303, 44, 15
+                    354, 325, 44, 15
     PUSHBUTTON      "適用", IDC_APPLY_SETTINGS,
-                    402, 303, 42, 15
+                    402, 325, 42, 15
     DEFPUSHBUTTON   "OK", IDOK,
-                    448, 303, 30, 15
+                    448, 325, 30, 15
     PUSHBUTTON      "取消", IDCANCEL,
-                    482, 303, 30, 15
+                    482, 325, 30, 15
 END
 
 IDD_R128_GLOSSARY DIALOGEX 0, 0, 400, 276
@@ -335,7 +340,7 @@ CAPTION "R128 音量ノーマライザー 用語集"
 FONT 9, "Yu Gothic UI"
 BEGIN
     LTEXT           "左の用語を選ぶと、このコンポーネント内での意味と読み方を表示します。",
-                    -1, 10, 9, 380, 14
+                    IDC_GLOSSARY_INSTRUCTION, 10, 9, 380, 14
     LISTBOX         IDC_GLOSSARY_LIST, 10, 28, 150, 218,
                     LBS_NOTIFY | WS_VSCROLL | WS_TABSTOP | WS_BORDER
     EDITTEXT        IDC_GLOSSARY_DESCRIPTION, 168, 28, 222, 218,
@@ -363,7 +368,7 @@ CAPTION "初期設定の確認"
 FONT 9, "Yu Gothic UI"
 BEGIN
     LTEXT           "現在の未適用変更を破棄し、すべての設定欄を初期設定へ戻します。\r\n［初期設定に戻す］のあと［適用］を押すと、再生中のDSPへ反映されます。\r\n続けますか？",
-                    -1, 12, 12, 236, 52
+                    IDC_CONFIRM_DEFAULTS_TEXT, 12, 12, 236, 52
     PUSHBUTTON      "初期設定に戻す", IDOK, 88, 80, 86, 16
     DEFPUSHBUTTON   "キャンセル", IDCANCEL, 180, 80, 68, 16
 END

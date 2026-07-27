@@ -1,0 +1,98 @@
+R128 Real-time Loudness Normalizer v1.6.0
+English Glossary
+
+Current processing state
+Normal, Needs adjustment, Auto-adjusting, or Adjustment limit. A persistent
+unsafe condition engages up to 6 dB of automatic safety attenuation.
+
+EBU R128
+A loudness-measurement method designed to make perceived levels more
+consistent.
+
+LUFS
+Loudness Units relative to Full Scale. Values closer to 0 sound louder.
+
+LU
+Loudness Unit, used to express a loudness difference. 1 LU is numerically
+equivalent to 1 dB.
+
+Momentary loudness
+Loudness measured over approximately 400 milliseconds.
+
+Short-term loudness
+Loudness measured over approximately three seconds.
+
+Integrated loudness
+Average loudness from the start of measurement.
+
+Loudness range (LRA)
+Estimated difference between quieter and louder parts of a track.
+
+True Peak / dBTP
+Estimated peak between digital samples and its unit of measurement.
+
+Target loudness
+The loudness level the processed output approaches.
+
+Maximum R128 boost / attenuation
+Limits the range over which normalization gain can move.
+
+True Peak limiter look-ahead
+How far the limiter anticipates peaks. More look-ahead adds latency.
+
+True Peak limiter release
+How quickly the limiter returns to normal gain after reducing a peak.
+
+Startup analysis time
+Initial measurement time used to stabilize gain decisions.
+
+Silence guard / boost hold
+Prevents silence and very quiet passages from being raised excessively.
+
+Gain lock
+Locks normalization gain after loudness stabilizes.
+
+Compressor
+Reduces sections that are too loud.
+
+Soft clipper
+Rounds sharp peaks to preserve loudness.
+
+True Peak limiter
+Final stage that keeps output below the selected True Peak ceiling.
+
+Automatic safety control
+Adds up to 6 dB of attenuation when processing becomes too strong.
+
+Modern Boost
+Combines compression, soft clipping, and True Peak limiting.
+
+1-Band Adaptive
+Automatically adjusts Modern Processing strength from loudness and LRA.
+
+3-Band Adaptive
+Controls low, mid, and high bands independently.
+
+Crossover frequencies
+Approximate 3-Band Adaptive boundaries: 160 Hz and 4 kHz.
+
+Loudness-matched A/B comparison
+Matches levels before comparing processed and original audio.
+
+Full-bypass comparison
+Bypasses every process in this component when Loudness match is off.
+
+Maximum True Peak
+Highest processed True Peak measured in the track.
+
+Maximum compressor / clipper / limiter
+Greatest reduction applied by each processing stage in the track.
+
+0 dBTP exceedance events
+Count of events where processed True Peak exceeded 0 dBTP.
+
+CPU load
+Estimated processing load of this DSP.
+
+Invalid-sample protection
+Replaces NaN, infinite, or extreme input samples with safe values.
