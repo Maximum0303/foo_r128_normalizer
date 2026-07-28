@@ -82,6 +82,7 @@
 #define IDC_GLOSSARY_DESCRIPTION      1065
 #define IDC_CONFIG_TABS                    1066
 #define IDC_TEXT_INFO_BODY                 1067
+#define IDC_DIAG_AUTO_REASON               1068
 
 #define IDC_BASIC_HEADER                   1100
 #define IDC_LABEL_TARGET_LUFS              1101
@@ -152,3 +153,4 @@
 #define IDC_COMPARE_GROUP                  1182
 #define IDC_CONFIRM_DEFAULTS_TEXT          1183
 #define IDC_GLOSSARY_INSTRUCTION           1184
+#define IDC_LABEL_DIAG_AUTO_REASON         1185

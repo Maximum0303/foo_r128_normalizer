@@ -158,6 +158,7 @@ std::atomic<unsigned long long> g_diagnostic_clip_event_count(0);
 std::atomic<unsigned long long> g_diagnostic_recovered_sample_count(0);
 std::atomic<int> g_diagnostic_track_evaluation_state(0);
 std::atomic<int> g_diagnostic_current_processing_state(0);
+std::atomic<int> g_diagnostic_auto_control_reason_mask(0);
 std::atomic<unsigned> g_diagnostic_sample_rate_hz(0);
 std::atomic<double> g_diagnostic_cpu_load_percent(0.0);
 std::atomic<int> g_diagnostic_final_summary_valid(0);
@@ -574,9 +575,24 @@ const wchar_t* current_processing_state_to_text(int state) {
     case 3:
         return ui_text(L"調整上限", L"Adjustment limit");
     case 4:
-        return ui_text(L"要調整", L"Needs adjustment");
+        return ui_text(L"監視中", L"Monitoring");
     default:
         return ui_text(L"未測定", L"Not measured");
+    }
+}
+
+const wchar_t* auto_control_reason_to_text(int reason_mask) {
+    switch (reason_mask) {
+    case 1:
+        return ui_text(L"True Peak超過", L"True Peak exceedance");
+    case 2:
+        return ui_text(L"リミッター過多", L"Excessive limiting");
+    case 4:
+        return ui_text(L"クリッパー過多", L"Excessive clipping");
+    case 0:
+        return ui_text(L"なし", L"None");
+    default:
+        return ui_text(L"複数要因", L"Multiple factors");
     }
 }
 
@@ -859,6 +875,8 @@ constexpr int kDiagnosticPageControls[] = {
     IDC_DIAG_THREE_BAND_REDUCTION,
     IDC_LABEL_DIAG_EVALUATION,
     IDC_DIAG_PROCESSING_EVALUATION,
+    IDC_LABEL_DIAG_AUTO_REASON,
+    IDC_DIAG_AUTO_REASON,
     IDC_LABEL_DIAG_MAX_TRUE_PEAK,
     IDC_DIAG_MAX_TRUE_PEAK,
     IDC_LABEL_DIAG_MAX_COMPRESSOR,
@@ -1003,7 +1021,7 @@ constexpr localized_control_text kPrimaryUiText[] = {
     { IDC_LABEL_DIAG_LRA, L"ラウドネスレンジ（LRA）：", L"Loudness range (LRA):" },
     { IDC_LABEL_DIAG_GAIN, L"適用中の総ゲイン：", L"Total applied gain:" },
     { IDC_LABEL_DIAG_PROCESSING, L"追加処理の状態：", L"Additional processing:" },
-    { IDC_LABEL_DIAG_SAFETY, L"自動安全補正ゲイン：", L"Automatic safety gain:" },
+    { IDC_LABEL_DIAG_SAFETY, L"自動減衰量：", L"Automatic attenuation:" },
     { IDC_LABEL_DIAG_COMPRESSOR, L"コンプレッサー減衰量：", L"Compressor reduction:" },
     { IDC_LABEL_DIAG_CLIPPER, L"ソフトクリッパー減衰量：", L"Soft clipper reduction:" },
     { IDC_LABEL_DIAG_LIMITER, L"True Peakリミッター減衰量：", L"True Peak limiter reduction:" },
@@ -1020,6 +1038,7 @@ constexpr localized_control_text kPrimaryUiText[] = {
     { IDC_LABEL_DIAG_MAX_CLIPPER, L"最大ソフトクリッパー減衰量：", L"Maximum soft clipper reduction:" },
     { IDC_LABEL_DIAG_MAX_LIMITER, L"最大True Peakリミッター減衰量：", L"Maximum limiter reduction:" },
     { IDC_LABEL_DIAG_EVALUATION, L"現在の処理状態：", L"Current processing state:" },
+    { IDC_LABEL_DIAG_AUTO_REASON, L"自動制御の理由：", L"Automatic-control reason:" },
 
     { IDC_PRESET_GROUP, L"プリセット（上段：標準4種／下段：追加処理3種）", L"Presets (standard: top / additional processing: bottom)" },
     { IDC_PROFILE_STANDARD, L"ナチュラル -18", L"Natural -18" },
@@ -2018,6 +2037,10 @@ std::wstring build_diagnostic_report() {
         g_diagnostic_current_processing_state.load(
             std::memory_order_relaxed
         );
+    const int auto_control_reason_mask =
+        g_diagnostic_auto_control_reason_mask.load(
+            std::memory_order_relaxed
+        );
     const unsigned sample_rate_hz =
         g_diagnostic_sample_rate_hz.load(
             std::memory_order_relaxed
@@ -2204,7 +2227,7 @@ std::wstring build_diagnostic_report() {
     swprintf_s(
         report,
         ui_text(
-        L"R128 音量ノーマライザー 1.6.1\r\n"
+        L"R128 音量ノーマライザー 1.7.0\r\n"
         L"再生状態: %s\r\n"
         L"補正状態: %s\r\n"
         L"補正ゲイン固定: %s\r\n"
@@ -2223,8 +2246,9 @@ std::wstring build_diagnostic_report() {
         L"目標との差: %s\r\n"
         L"LRA推定: %s\r\n"
         L"追加処理状態: %s\r\n"
-        L"自動安全補正ゲイン: %.2f dB\r\n"
+        L"自動減衰量: %.2f dB\r\n"
         L"現在の処理状態: %s\r\n"
+        L"自動制御の理由: %s\r\n"
         L"現在のノーマライズゲイン: %+.2f dB\r\n"
         L"適用中の総ゲイン: %+.2f dB\r\n"
         L"コンプレッサー減衰: %.2f dB\r\n"
@@ -2260,7 +2284,7 @@ std::wstring build_diagnostic_report() {
         L"処理評価: %s\r\n"
         L"サンプルレート: %u Hz\r\n"
         L"推定CPU負荷: %.2f %%\r\n",
-        L"R128 Loudness Normalizer 1.6.1\r\n"
+        L"R128 Loudness Normalizer 1.7.0\r\n"
         L"Playback state: %s\r\n"
         L"Normalization state: %s\r\n"
         L"Gain lock: %s\r\n"
@@ -2279,8 +2303,9 @@ std::wstring build_diagnostic_report() {
         L"Difference from target: %s\r\n"
         L"Estimated LRA: %s\r\n"
         L"Additional processing: %s\r\n"
-        L"Automatic safety gain: %.2f dB\r\n"
+        L"Automatic attenuation: %.2f dB\r\n"
         L"Current processing state: %s\r\n"
+        L"Automatic-control reason: %s\r\n"
         L"Current normalization gain: %+.2f dB\r\n"
         L"Total applied gain: %+.2f dB\r\n"
         L"Compressor reduction: %.2f dB\r\n"
@@ -2351,9 +2376,12 @@ std::wstring build_diagnostic_report() {
         target_difference.c_str(),
         lra.c_str(),
         processing_risk_to_text(processing_risk_state),
-        safety_reduction_db,
+        std::max(0.0, -safety_reduction_db),
         stream_active
             ? current_processing_state_to_text(current_processing_state)
+            : ui_text(L"待機中", L"Standby"),
+        stream_active
+            ? auto_control_reason_to_text(auto_control_reason_mask)
             : ui_text(L"待機中", L"Standby"),
         normalization_gain_db,
         applied_gain_db,
@@ -2530,6 +2558,10 @@ void refresh_diagnostic_controls(HWND wnd) {
         g_diagnostic_current_processing_state.load(
             std::memory_order_relaxed
         );
+    const int auto_control_reason_mask =
+        g_diagnostic_auto_control_reason_mask.load(
+            std::memory_order_relaxed
+        );
     const unsigned sample_rate_hz =
         g_diagnostic_sample_rate_hz.load(
             std::memory_order_relaxed
@@ -2690,6 +2722,13 @@ void refresh_diagnostic_controls(HWND wnd) {
             )
             : ui_text(L"待機中", L"Standby")
     );
+    set_control_text(
+        wnd,
+        IDC_DIAG_AUTO_REASON,
+        stream_active
+            ? auto_control_reason_to_text(auto_control_reason_mask)
+            : ui_text(L"待機中", L"Standby")
+    );
     if (displayed_sample_rate > 0) {
         swprintf_s(text, L"%u Hz", displayed_sample_rate);
         set_control_text(wnd, IDC_DIAG_SAMPLE_RATE, text);
@@ -2739,9 +2778,7 @@ void refresh_diagnostic_controls(HWND wnd) {
         set_control_text(
             wnd,
             IDC_DIAG_SAFETY_REDUCTION,
-            modern_boost_enabled
-                ? L"0.00 dB"
-                : ui_text(L"無効", L"Disabled")
+            L"0.00 dB"
         );
         set_control_text(wnd, IDC_DIAG_GAIN, ui_text(L"待機中", L"Standby"));
         set_control_text(wnd, IDC_DIAG_TRUE_PEAK, ui_text(L"待機中", L"Standby"));
@@ -2933,7 +2970,7 @@ void refresh_diagnostic_controls(HWND wnd) {
     }
 
     if (stream_active && std::isfinite(safety_reduction_db)) {
-        swprintf_s(text, L"%.2f dB", safety_reduction_db);
+        swprintf_s(text, L"%.2f dB", std::max(0.0, -safety_reduction_db));
         set_control_text(wnd, IDC_DIAG_SAFETY_REDUCTION, text);
     }
     else {
@@ -3032,6 +3069,10 @@ constexpr glossary_entry kGlossaryEntries[] = {
         L"\r\n"
         L"要調整：最大クリップまたは最大リミッターが3 dB以上、"
         L"最大TPが+0.01 dBTP超、または0 dBTP超過が1回以上です。\r\n"
+        L"\r\n"
+        L"現在の処理状態は「正常／監視中／自動調整中／調整上限」で"
+        L"表示します。自動制御の理由と自動減衰量も"
+        L"同じ診断ページで確認できます。\r\n"
         L"\r\n"
         L"要調整時はモダン強度を10～15%下げるか、"
         L"目標LUFSを1～2 LU下げてから測定をリセットしてください。"
@@ -3150,7 +3191,8 @@ constexpr glossary_entry kGlossaryEntries[] = {
         L"自動セーフティ",
         L"処理が強くなりすぎたとき、全プリセットで最大6 dBまで"
         L"全体を安全側へ下げる機能です。\r\n\r\n"
-        L"診断の「自動安全補正ゲイン」に現在の減衰量が表示されます。"
+        L"診断の「自動減衰量」に現在の減衰量が正の値で表示され、"
+        L"「自動制御の理由」で発動要因を確認できます。"
     },
     {
         L"モダンブースト",
@@ -3225,11 +3267,12 @@ constexpr glossary_entry kGlossaryEntries[] = {
 constexpr glossary_entry kGlossaryEntriesEnglish[] = {
     {
         L"Reading the diagnostics",
-        L"Current processing state is shown as Normal, Needs adjustment, "
+        L"Current processing state is shown as Normal, Monitoring, "
         L"Auto-adjusting, or Adjustment limit.\r\n\r\n"
-        L"Needs adjustment is a short confirmation period. If the condition "
+        L"Monitoring is a short confirmation period. If the condition "
         L"continues, automatic safety control adds up to 6 dB of attenuation. "
-        L"The state returns to Normal after conditions remain safe."
+        L"After safe recovery, the state returns to Normal. The diagnostics "
+        L"also show the last trigger reason and automatic attenuation amount."
     },
     {
         L"EBU R128",
@@ -3333,7 +3376,8 @@ constexpr glossary_entry kGlossaryEntriesEnglish[] = {
     {
         L"Automatic safety control",
         L"Adds up to 6 dB of attenuation for every preset when processing "
-        L"becomes too strong. The current amount appears as Automatic safety gain."
+        L"becomes too strong. The current positive amount appears as Automatic "
+        L"attenuation, and the trigger appears as Automatic-control reason."
     },
     {
         L"Modern Boost",
@@ -3636,9 +3680,16 @@ constexpr context_help_entry kContextHelpEntries[] = {
     },
     {
         IDC_DIAG_SAFETY_REDUCTION,
-        L"自動安全補正ゲイン",
+        L"自動減衰量",
         L"処理が強くなりすぎた際に追加された安全減衰量です。"
         L"全プリセットで最大6 dBまで自動調整します。"
+    },
+    {
+        IDC_DIAG_AUTO_REASON,
+        L"自動制御の理由",
+        L"監視または自動調整を開始した要因です。"
+        L"True Peak超過、リミッター過多、クリッパー過多、"
+        L"複数要因のいずれかを表示します。"
     },
     {
         IDC_DIAG_GAIN,
@@ -3730,8 +3781,8 @@ constexpr context_help_entry kContextHelpEntries[] = {
     {
         IDC_DIAG_PROCESSING_EVALUATION,
         L"現在の処理状態",
-        L"リアルタイム監視の状態を「正常／要調整／自動調整中／"
-        L"調整上限」で表示します。安全な状態が続くと正常へ戻ります。"
+        L"リアルタイム監視の状態を「正常／監視中／自動調整中／"
+        L"調整上限」で表示します。安全復帰後は「正常」に戻ります。"
     },
     {
         IDC_COMPARE_LOUDNESS_MATCH,
@@ -3791,7 +3842,7 @@ constexpr label_help_link kLabelHelpLinks[] = {
     { L"ラウドネスレンジ（LRA）：", IDC_DIAG_LRA },
     { L"適用中の総ゲイン：", IDC_DIAG_GAIN },
     { L"追加処理の状態：", IDC_DIAG_PROCESSING_RISK },
-    { L"自動安全補正ゲイン：", IDC_DIAG_SAFETY_REDUCTION },
+    { L"自動減衰量：", IDC_DIAG_SAFETY_REDUCTION },
     { L"コンプレッサー減衰量：", IDC_DIAG_COMPRESSOR_REDUCTION },
     { L"ソフトクリッパー減衰量：", IDC_DIAG_CLIPPER_REDUCTION },
     { L"True Peakリミッター減衰量：", IDC_DIAG_LIMITER_REDUCTION },
@@ -3803,6 +3854,7 @@ constexpr label_help_link kLabelHelpLinks[] = {
     { L"CPU負荷：", IDC_DIAG_CPU_LOAD },
     { L"0 dBTP超過イベント：", IDC_DIAG_CLIP_EVENT_COUNT },
     { L"現在の処理状態：", IDC_DIAG_PROCESSING_EVALUATION },
+    { L"自動制御の理由：", IDC_DIAG_AUTO_REASON },
     { L"最大True Peak：", IDC_DIAG_MAX_TRUE_PEAK },
     { L"最大コンプレッサー減衰量：", IDC_DIAG_MAX_COMPRESSOR_REDUCTION },
     { L"最大ソフトクリッパー減衰量：", IDC_DIAG_MAX_CLIPPER_REDUCTION },
@@ -3852,7 +3904,7 @@ const wchar_t* english_control_title(
     case IDC_DIAG_TARGET_DIFFERENCE: return L"Difference from target";
     case IDC_DIAG_LRA: return L"Loudness range (LRA)";
     case IDC_DIAG_PROCESSING_RISK: return L"Additional processing";
-    case IDC_DIAG_SAFETY_REDUCTION: return L"Automatic safety gain";
+    case IDC_DIAG_SAFETY_REDUCTION: return L"Automatic attenuation";
     case IDC_DIAG_GAIN: return L"Total applied gain";
     case IDC_DIAG_COMPRESSOR_REDUCTION: return L"Compressor reduction";
     case IDC_DIAG_CLIPPER_REDUCTION: return L"Soft clipper reduction";
@@ -3873,6 +3925,7 @@ const wchar_t* english_control_title(
     case IDC_DIAG_CPU_LOAD: return L"CPU load";
     case IDC_DIAG_CLIP_EVENT_COUNT: return L"0 dBTP exceedance events";
     case IDC_DIAG_PROCESSING_EVALUATION: return L"Current processing state";
+    case IDC_DIAG_AUTO_REASON: return L"Automatic-control reason";
     case IDC_COMPARE_LOUDNESS_MATCH: return L"Loudness match";
     case IDC_ORIGINAL_COMPARE: return L"Compare (hold)";
     case IDC_RESET_MEASUREMENT: return L"Reset measurement";
@@ -3967,6 +4020,10 @@ const wchar_t* english_context_help_description(int control_id) {
     case IDC_DIAG_SAFETY_REDUCTION:
         return L"Additional automatic attenuation applied when processing "
             L"becomes too strong, up to 6 dB for every preset.";
+    case IDC_DIAG_AUTO_REASON:
+        return L"Shows why monitoring or automatic adjustment started: "
+            L"True Peak exceedance, excessive limiting, excessive clipping, "
+            L"or multiple factors.";
     case IDC_DIAG_GAIN:
         return L"Current overall gain, including R128 normalization and safety control.";
     case IDC_DIAG_COMPRESSOR_REDUCTION:
@@ -4004,8 +4061,8 @@ const wchar_t* english_context_help_description(int control_id) {
         return L"Number of events where processed True Peak exceeded 0 dBTP. "
             L"Normally this should remain at zero.";
     case IDC_DIAG_PROCESSING_EVALUATION:
-        return L"Real-time state: Normal, Needs adjustment, Auto-adjusting, "
-            L"or Adjustment limit. It returns to Normal after conditions remain safe.";
+        return L"Real-time state: Normal, Monitoring, Auto-adjusting, "
+            L"or Adjustment limit. It returns to Normal after safe recovery.";
     case IDC_COMPARE_LOUDNESS_MATCH:
         return L"When enabled, processed and original audio are loudness matched. "
             L"When disabled, comparison fully bypasses this DSP.";
@@ -4077,6 +4134,7 @@ int help_control_id_from_label(HWND item) {
     case IDC_LABEL_DIAG_CPU: return IDC_DIAG_CPU_LOAD;
     case IDC_LABEL_DIAG_CLIP_EVENTS: return IDC_DIAG_CLIP_EVENT_COUNT;
     case IDC_LABEL_DIAG_EVALUATION: return IDC_DIAG_PROCESSING_EVALUATION;
+    case IDC_LABEL_DIAG_AUTO_REASON: return IDC_DIAG_AUTO_REASON;
     case IDC_LABEL_DIAG_MAX_TRUE_PEAK: return IDC_DIAG_MAX_TRUE_PEAK;
     case IDC_LABEL_DIAG_MAX_COMPRESSOR:
         return IDC_DIAG_MAX_COMPRESSOR_REDUCTION;
@@ -4280,7 +4338,7 @@ bool confirm_restore_defaults(HWND owner) {
 }
 
 constexpr wchar_t kLicenseCreditsText[] =
-    L"R128 リアルタイム音量ノーマライザー 1.6.1\r\n"
+    L"R128 リアルタイム音量ノーマライザー 1.7.0\r\n"
     L"\r\n"
     L"作者：Maximum\r\n"
     L"Copyright (c) 2026 Maximum\r\n"
@@ -4297,7 +4355,7 @@ constexpr wchar_t kLicenseCreditsText[] =
     L"THIRD-PARTY-NOTICES.txtをご覧ください。";
 
 constexpr wchar_t kLicenseCreditsTextEnglish[] =
-    L"R128 Real-time Loudness Normalizer 1.6.1\r\n"
+    L"R128 Real-time Loudness Normalizer 1.7.0\r\n"
     L"\r\n"
     L"Author: Maximum\r\n"
     L"Copyright (c) 2026 Maximum\r\n"
@@ -6856,6 +6914,21 @@ private:
             clipper_reduction_db >= 3.0 ||
             limiter_reduction_db >= 3.0 ||
             output_true_peak_dbtp > 0.01;
+        const int current_reason_mask =
+            (output_true_peak_dbtp > 0.01 ? 1 : 0) |
+            (limiter_reduction_db >= 3.0 ? 2 : 0) |
+            (clipper_reduction_db >= 3.0 ? 4 : 0);
+
+        if (!m_auto_control_engaged &&
+            m_auto_control_recovered &&
+            current_reason_mask != 0) {
+            m_auto_control_recovered = false;
+            m_auto_control_reason_mask = 0;
+        }
+
+        if (current_reason_mask != 0) {
+            m_auto_control_reason_mask |= current_reason_mask;
+        }
 
         const double frame_seconds =
             1.0 / static_cast<double>(m_sample_rate);
@@ -6906,7 +6979,15 @@ private:
         if (!m_auto_control_engaged &&
             m_excessive_processing_seconds >= kAutoSafetyTriggerSeconds) {
             m_auto_control_engaged = true;
+            m_auto_control_recovered = false;
             m_auto_control_safe_seconds = 0.0;
+        }
+
+        if (!m_auto_control_engaged &&
+            !m_auto_control_recovered &&
+            !excessive_now &&
+            m_excessive_processing_seconds <= 0.001) {
+            m_auto_control_reason_mask = 0;
         }
 
         double target_safety_db = 0.0;
@@ -6978,7 +7059,10 @@ private:
         }
 
         if (!m_auto_control_engaged) {
-            m_current_processing_state = excessive_now ? 4 : 1;
+            m_current_processing_state =
+                m_excessive_processing_seconds > 0.001
+                ? 4
+                : 1;
         }
         else if (m_auto_control_limit_seconds >= kAutoSafetyLimitHoldSeconds) {
             m_current_processing_state = 3;
@@ -6990,6 +7074,7 @@ private:
             m_auto_control_safe_seconds = 0.0;
             m_auto_control_limit_seconds = 0.0;
             m_safety_reduction_db = 0.0;
+            m_auto_control_recovered = true;
             m_current_processing_state = 1;
         }
         else {
@@ -8305,6 +8390,10 @@ private:
             m_current_processing_state,
             std::memory_order_relaxed
         );
+        g_diagnostic_auto_control_reason_mask.store(
+            m_auto_control_reason_mask,
+            std::memory_order_relaxed
+        );
         g_diagnostic_original_compare_state.store(
             g_original_compare_request.load(
                 std::memory_order_relaxed
@@ -8593,6 +8682,10 @@ private:
             0,
             std::memory_order_relaxed
         );
+        g_diagnostic_auto_control_reason_mask.store(
+            0,
+            std::memory_order_relaxed
+        );
         g_diagnostic_cpu_load_percent.store(
             0.0,
             std::memory_order_relaxed
@@ -8716,6 +8809,8 @@ private:
         m_auto_control_safe_seconds = 0.0;
         m_auto_control_limit_seconds = 0.0;
         m_auto_control_engaged = false;
+        m_auto_control_recovered = false;
+        m_auto_control_reason_mask = 0;
         m_current_processing_state = 0;
         m_processing_risk_state =
             m_settings.enable_modern_boost ? 1 : 0;
@@ -8884,6 +8979,10 @@ private:
             0,
             std::memory_order_relaxed
         );
+        g_diagnostic_auto_control_reason_mask.store(
+            0,
+            std::memory_order_relaxed
+        );
         g_diagnostic_sample_rate_hz.store(
             m_sample_rate,
             std::memory_order_relaxed
@@ -9035,6 +9134,8 @@ private:
     double m_auto_control_safe_seconds = 0.0;
     double m_auto_control_limit_seconds = 0.0;
     bool m_auto_control_engaged = false;
+    bool m_auto_control_recovered = false;
+    int m_auto_control_reason_mask = 0;
     int m_current_processing_state = 0;
     int m_processing_risk_state = 0;
     int m_normalization_state = 0;

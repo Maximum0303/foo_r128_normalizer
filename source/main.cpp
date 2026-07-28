@@ -2,13 +2,22 @@
 
 DECLARE_COMPONENT_VERSION(
     "R128 \xE3\x83\xAA\xE3\x82\xA2\xE3\x83\xAB\xE3\x82\xBF\xE3\x82\xA4\xE3\x83\xA0\xE9\x9F\xB3\xE9\x87\x8F\xE3\x83\x8E\xE3\x83\xBC\xE3\x83\x9E\xE3\x83\xA9\xE3\x82\xA4\xE3\x82\xB6\xE3\x83\xBC",
-    "1.6.1",
+    "1.7.0",
     "R128-based real-time loudness normalizer for foobar2000.\n"
     "foobar2000用のR128ベース・リアルタイム音量ノーマライザーです。\n"
     "\n"
     "Author: Maximum\n"
     "Copyright (c) 2026 Maximum\n"
     "License: MIT License\n"
+    "\n"
+    "v1.7.0 makes automatic safety control easier to understand by showing\n"
+    "Monitoring and Auto-adjusting states, the trigger reason, and the\n"
+    "positive automatic attenuation amount in diagnostics. The state returns\n"
+    "to Normal after safe recovery.\n"
+    "\n"
+    "v1.7.0では、自動安全制御の状態を「監視中」「自動調整中」まで\n"
+    "分かりやすく表示し、発動理由と実施した自動減衰量を診断へ表示します。\n"
+    "安全復帰後の現在の処理状態は「正常」に戻ります。\n"
     "\n"
     "v1.6.1 keeps the settings window accessible at 200-250% scaling,\n"
     "improves live theme switching and tooltip scaling at high DPI,\n"
