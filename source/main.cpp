@@ -2,13 +2,24 @@
 
 DECLARE_COMPONENT_VERSION(
     "R128 \xE3\x83\xAA\xE3\x82\xA2\xE3\x83\xAB\xE3\x82\xBF\xE3\x82\xA4\xE3\x83\xA0\xE9\x9F\xB3\xE9\x87\x8F\xE3\x83\x8E\xE3\x83\xBC\xE3\x83\x9E\xE3\x83\xA9\xE3\x82\xA4\xE3\x82\xB6\xE3\x83\xBC",
-    "1.7.0",
+    "1.8.0",
     "R128-based real-time loudness normalizer for foobar2000.\n"
     "foobar2000用のR128ベース・リアルタイム音量ノーマライザーです。\n"
     "\n"
     "Author: Maximum\n"
     "Copyright (c) 2026 Maximum\n"
     "License: MIT License\n"
+    "\n"
+    "v1.8.0 adds a persistent Automatic-Control History for up to 100 tracks.\n"
+    "It records playback time, title and artist, preset, trigger reason,\n"
+    "maximum automatic attenuation, activation count, adjustment-limit\n"
+    "status, and safe recovery. History can be copied or deleted from the\n"
+    "Diagnostics page without writing from the real-time audio thread.\n"
+    "\n"
+    "v1.8.0では、自動制御が発動した最新100曲の履歴を追加しました。\n"
+    "再生日時、曲名／アーティスト、プリセット、発動理由、最大自動減衰量、\n"
+    "発動回数、調整上限、安全復帰を一覧で確認・コピー・削除できます。\n"
+    "リアルタイム音声処理中には履歴のディスク書き込みを行いません。\n"
     "\n"
     "v1.7.0 makes automatic safety control easier to understand by showing\n"
     "Monitoring and Auto-adjusting states, the trigger reason, and the\n"

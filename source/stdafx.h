@@ -18,12 +18,15 @@
 #include <algorithm>
 #include <atomic>
 #include <cmath>
+#include <cstdint>
 #include <cwchar>
 #include <deque>
 #include <iterator>
 #include <limits>
 #include <numeric>
+#include <sstream>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "../SDK/foobar2000.h"

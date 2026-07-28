@@ -1,4 +1,4 @@
-R128 Real-time Loudness Normalizer v1.7.0
+R128 Real-time Loudness Normalizer v1.8.0
 English Glossary
 
 Current processing state
@@ -65,6 +65,12 @@ Final stage that keeps output below the selected True Peak ceiling.
 
 Automatic safety control
 Adds up to 6 dB of attenuation when processing becomes too strong.
+
+Automatic-Control History
+Stores up to 100 recent tracks where automatic control actually activated.
+It records playback time, title and artist, preset, trigger reason, maximum
+automatic attenuation, activation count, adjustment-limit status, and safe
+recovery. A brief Monitoring state without Auto-adjusting is not recorded.
 
 Modern Boost
 Combines compression, soft clipping, and True Peak limiting.

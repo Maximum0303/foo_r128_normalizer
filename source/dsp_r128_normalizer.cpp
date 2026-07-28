@@ -10,6 +10,9 @@ static const GUID guid_r128_normalizer =
 static const GUID guid_cfg_display_language =
 { 0x13f3c74b, 0xf11d, 0x4db5, { 0xa9, 0x6d, 0xe7, 0x7f, 0xc8, 0x90, 0x6c, 0x52 } };
 
+static const GUID guid_cfg_auto_control_history =
+{ 0x8f971df3, 0xe9c8, 0x4b37, { 0xb5, 0x38, 0x2f, 0x65, 0xe3, 0x8a, 0x54, 0x91 } };
+
 enum class display_language : int {
     automatic = 0,
     japanese = 1,
@@ -19,6 +22,11 @@ enum class display_language : int {
 cfg_int g_cfg_display_language(
     guid_cfg_display_language,
     static_cast<int>(display_language::automatic)
+);
+
+cfg_string g_cfg_auto_control_history(
+    guid_cfg_auto_control_history,
+    ""
 );
 
 constexpr t_uint32 kPresetVersion = 7;
@@ -82,6 +90,8 @@ constexpr t_size kMaximumStoredBlocks = 108000;
 
 constexpr UINT_PTR kDiagnosticsTimerId = 1;
 constexpr UINT kDiagnosticsRefreshMilliseconds = 250;
+constexpr t_size kMaximumAutoControlHistoryEntries = 100;
+constexpr t_size kMaximumHistoryMetadataCharacters = 512;
 
 // foobar2000 audio_chunk channel flags. Interleaved sample order follows
 // the ascending order of these channel-map flags.
@@ -186,6 +196,23 @@ std::atomic<int> g_diagnostic_gain_lock_state(0);
 std::atomic<double> g_diagnostic_gain_lock_remaining_seconds(0.0);
 std::atomic<double> g_diagnostic_locked_gain_db(0.0);
 std::atomic<unsigned long long> g_measurement_reset_request(0);
+std::atomic<unsigned> g_history_auto_control_trigger_count(0);
+std::atomic<int> g_history_auto_control_reason_mask(0);
+std::atomic<double> g_history_max_auto_attenuation_db(0.0);
+std::atomic<int> g_history_adjustment_limit_reached(0);
+std::atomic<int> g_history_recovered(0);
+std::atomic<int> g_history_profile_id(-1);
+std::atomic<int> g_history_latest_auto_control_reason_mask(0);
+std::atomic<unsigned> g_history_final_auto_control_trigger_count(0);
+std::atomic<int> g_history_final_auto_control_reason_mask(0);
+std::atomic<double> g_history_final_max_auto_attenuation_db(0.0);
+std::atomic<int> g_history_final_adjustment_limit_reached(0);
+std::atomic<int> g_history_final_recovered(0);
+std::atomic<int> g_history_final_profile_id(-1);
+std::atomic<unsigned long long> g_history_final_session_id(0);
+std::atomic<unsigned long long> g_history_active_session_id(0);
+std::atomic<unsigned long long> g_history_metrics_session_id(0);
+std::atomic<unsigned long long> g_history_track_reset_request(0);
 
 struct r128_settings {
     float target_lufs = -18.0f;
@@ -595,6 +622,801 @@ const wchar_t* auto_control_reason_to_text(int reason_mask) {
         return ui_text(L"複数要因", L"Multiple factors");
     }
 }
+
+std::wstring diagnostic_auto_control_reason_text(
+    int current_reason_mask,
+    int latest_reason_mask,
+    int processing_state,
+    unsigned trigger_count,
+    bool latest_recovered
+) {
+    if (trigger_count == 0) {
+        if (processing_state == 4 &&
+            current_reason_mask != 0) {
+            return auto_control_reason_to_text(
+                current_reason_mask
+            );
+        }
+
+        return ui_text(
+            L"この曲では未発動",
+            L"Not activated for this track"
+        );
+    }
+
+    const int displayed_reason =
+        latest_reason_mask != 0
+            ? latest_reason_mask
+            : current_reason_mask;
+
+    if (processing_state == 1 && latest_recovered) {
+        wchar_t text[160] = {};
+        swprintf_s(
+            text,
+            ui_text(
+                L"直近：%s（復帰済み）",
+                L"Latest: %s (recovered)"
+            ),
+            auto_control_reason_to_text(displayed_reason)
+        );
+        return text;
+    }
+
+    return auto_control_reason_to_text(displayed_reason);
+}
+
+struct auto_control_history_metrics {
+    unsigned trigger_count = 0;
+    int reason_mask = 0;
+    double maximum_attenuation_db = 0.0;
+    bool adjustment_limit_reached = false;
+    bool recovered = false;
+    int profile_id = -1;
+};
+
+struct auto_control_history_entry {
+    unsigned long long timestamp = 0;
+    unsigned long long session_id = 0;
+    std::wstring artist;
+    std::wstring title;
+    int profile_id = -1;
+    int reason_mask = 0;
+    double maximum_attenuation_db = 0.0;
+    unsigned trigger_count = 0;
+    bool adjustment_limit_reached = false;
+    bool recovered = false;
+};
+
+std::vector<auto_control_history_entry> g_auto_control_history_entries;
+bool g_auto_control_history_loaded = false;
+unsigned long long g_auto_control_history_next_session_id = 1;
+unsigned long long g_auto_control_history_active_session_id = 0;
+unsigned long long g_auto_control_history_suppressed_session_id = 0;
+unsigned long long g_auto_control_history_revision = 0;
+
+std::wstring utf8_to_wide(const char* text) {
+    if (text == nullptr || *text == '\0') {
+        return {};
+    }
+
+    const int count = MultiByteToWideChar(
+        CP_UTF8,
+        MB_ERR_INVALID_CHARS,
+        text,
+        -1,
+        nullptr,
+        0
+    );
+
+    if (count <= 1) {
+        return {};
+    }
+
+    std::wstring result(
+        static_cast<t_size>(count),
+        L'\0'
+    );
+    MultiByteToWideChar(
+        CP_UTF8,
+        MB_ERR_INVALID_CHARS,
+        text,
+        -1,
+        result.data(),
+        count
+    );
+    result.resize(static_cast<t_size>(count - 1));
+    return result;
+}
+
+std::string wide_to_utf8(const std::wstring& text) {
+    if (text.empty()) {
+        return {};
+    }
+
+    const int count = WideCharToMultiByte(
+        CP_UTF8,
+        WC_ERR_INVALID_CHARS,
+        text.c_str(),
+        static_cast<int>(text.size()),
+        nullptr,
+        0,
+        nullptr,
+        nullptr
+    );
+
+    if (count <= 0) {
+        return {};
+    }
+
+    std::string result(
+        static_cast<t_size>(count),
+        '\0'
+    );
+    WideCharToMultiByte(
+        CP_UTF8,
+        WC_ERR_INVALID_CHARS,
+        text.c_str(),
+        static_cast<int>(text.size()),
+        result.data(),
+        count,
+        nullptr,
+        nullptr
+    );
+    return result;
+}
+
+std::string hex_encode(const std::string& value) {
+    static constexpr char kHexDigits[] =
+        "0123456789ABCDEF";
+
+    std::string result;
+    result.reserve(value.size() * 2);
+
+    for (unsigned char character : value) {
+        result.push_back(kHexDigits[(character >> 4) & 0x0f]);
+        result.push_back(kHexDigits[character & 0x0f]);
+    }
+
+    return result;
+}
+
+int hex_digit_value(char character) {
+    if (character >= '0' && character <= '9') {
+        return character - '0';
+    }
+    if (character >= 'a' && character <= 'f') {
+        return 10 + character - 'a';
+    }
+    if (character >= 'A' && character <= 'F') {
+        return 10 + character - 'A';
+    }
+    return -1;
+}
+
+bool hex_decode(
+    const std::string& value,
+    std::string& result
+) {
+    if ((value.size() % 2) != 0) {
+        return false;
+    }
+
+    result.clear();
+    result.reserve(value.size() / 2);
+
+    for (t_size index = 0;
+         index < value.size();
+         index += 2) {
+        const int high = hex_digit_value(value[index]);
+        const int low = hex_digit_value(value[index + 1]);
+
+        if (high < 0 || low < 0) {
+            result.clear();
+            return false;
+        }
+
+        result.push_back(
+            static_cast<char>((high << 4) | low)
+        );
+    }
+
+    return true;
+}
+
+std::vector<std::string> split_history_fields(
+    const std::string& line
+) {
+    std::vector<std::string> fields;
+    t_size start = 0;
+
+    for (;;) {
+        const t_size separator = line.find('\t', start);
+
+        if (separator == std::string::npos) {
+            fields.push_back(line.substr(start));
+            break;
+        }
+
+        fields.push_back(line.substr(start, separator - start));
+        start = separator + 1;
+    }
+
+    return fields;
+}
+
+void limit_history_metadata_length(std::wstring& value);
+
+void save_auto_control_history() {
+    std::ostringstream output;
+    output << "R128H1\n";
+
+    for (const auto& entry : g_auto_control_history_entries) {
+        output
+            << entry.timestamp << '\t'
+            << entry.profile_id << '\t'
+            << entry.reason_mask << '\t'
+            << static_cast<long long>(std::llround(
+                entry.maximum_attenuation_db * 1000.0
+            )) << '\t'
+            << entry.trigger_count << '\t'
+            << (entry.adjustment_limit_reached ? 1 : 0) << '\t'
+            << (entry.recovered ? 1 : 0) << '\t'
+            << hex_encode(wide_to_utf8(entry.artist)) << '\t'
+            << hex_encode(wide_to_utf8(entry.title))
+            << '\n';
+    }
+
+    g_cfg_auto_control_history = output.str().c_str();
+    ++g_auto_control_history_revision;
+}
+
+void ensure_auto_control_history_loaded() {
+    if (g_auto_control_history_loaded) {
+        return;
+    }
+
+    g_auto_control_history_loaded = true;
+    g_auto_control_history_entries.clear();
+
+    std::istringstream input(
+        g_cfg_auto_control_history.get_ptr()
+    );
+    std::string line;
+
+    if (!std::getline(input, line) || line != "R128H1") {
+        return;
+    }
+
+    while (std::getline(input, line) &&
+           g_auto_control_history_entries.size() <
+               kMaximumAutoControlHistoryEntries) {
+        const auto fields = split_history_fields(line);
+
+        if (fields.size() != 9) {
+            continue;
+        }
+
+        try {
+            auto_control_history_entry entry;
+            entry.timestamp = std::stoull(fields[0]);
+            entry.profile_id = std::stoi(fields[1]);
+            entry.reason_mask = std::stoi(fields[2]);
+            entry.maximum_attenuation_db =
+                static_cast<double>(std::stoll(fields[3])) /
+                1000.0;
+            entry.trigger_count = static_cast<unsigned>(
+                std::stoul(fields[4])
+            );
+            entry.adjustment_limit_reached =
+                std::stoi(fields[5]) != 0;
+            entry.recovered = std::stoi(fields[6]) != 0;
+
+            std::string artist_utf8;
+            std::string title_utf8;
+
+            if (!hex_decode(fields[7], artist_utf8) ||
+                !hex_decode(fields[8], title_utf8)) {
+                continue;
+            }
+
+            entry.artist = utf8_to_wide(artist_utf8.c_str());
+            entry.title = utf8_to_wide(title_utf8.c_str());
+            limit_history_metadata_length(entry.artist);
+            limit_history_metadata_length(entry.title);
+
+            if (entry.timestamp == 0 ||
+                entry.trigger_count == 0) {
+                continue;
+            }
+
+            g_auto_control_history_entries.push_back(
+                std::move(entry)
+            );
+        }
+        catch (...) {
+            continue;
+        }
+    }
+}
+
+unsigned long long current_filetime_value() {
+    FILETIME file_time = {};
+    GetSystemTimeAsFileTime(&file_time);
+
+    ULARGE_INTEGER value = {};
+    value.LowPart = file_time.dwLowDateTime;
+    value.HighPart = file_time.dwHighDateTime;
+    return value.QuadPart;
+}
+
+auto_control_history_metrics current_auto_control_history_metrics() {
+    auto_control_history_metrics metrics;
+
+    if (g_history_metrics_session_id.load(
+            std::memory_order_relaxed
+        ) !=
+        g_history_active_session_id.load(
+            std::memory_order_relaxed
+        )) {
+        return metrics;
+    }
+
+    metrics.trigger_count =
+        g_history_auto_control_trigger_count.load(
+            std::memory_order_relaxed
+        );
+    metrics.reason_mask =
+        g_history_auto_control_reason_mask.load(
+            std::memory_order_relaxed
+        );
+    metrics.maximum_attenuation_db =
+        g_history_max_auto_attenuation_db.load(
+            std::memory_order_relaxed
+        );
+    metrics.adjustment_limit_reached =
+        g_history_adjustment_limit_reached.load(
+            std::memory_order_relaxed
+        ) != 0;
+    metrics.recovered =
+        g_history_recovered.load(
+            std::memory_order_relaxed
+        ) != 0;
+    metrics.profile_id =
+        g_history_profile_id.load(
+            std::memory_order_relaxed
+        );
+    return metrics;
+}
+
+auto_control_history_metrics final_auto_control_history_metrics() {
+    auto_control_history_metrics metrics;
+    metrics.trigger_count =
+        g_history_final_auto_control_trigger_count.load(
+            std::memory_order_relaxed
+        );
+    metrics.reason_mask =
+        g_history_final_auto_control_reason_mask.load(
+            std::memory_order_relaxed
+        );
+    metrics.maximum_attenuation_db =
+        g_history_final_max_auto_attenuation_db.load(
+            std::memory_order_relaxed
+        );
+    metrics.adjustment_limit_reached =
+        g_history_final_adjustment_limit_reached.load(
+            std::memory_order_relaxed
+        ) != 0;
+    metrics.recovered =
+        g_history_final_recovered.load(
+            std::memory_order_relaxed
+        ) != 0;
+    metrics.profile_id =
+        g_history_final_profile_id.load(
+            std::memory_order_relaxed
+        );
+    return metrics;
+}
+
+bool valid_recognized_profile_id(int profile_id) {
+    return profile_id >=
+            static_cast<int>(recognized_profile::standard) &&
+        profile_id <=
+            static_cast<int>(recognized_profile::custom);
+}
+
+void update_auto_control_history_entry(
+    unsigned long long session_id,
+    unsigned long long timestamp,
+    const std::wstring& artist,
+    const std::wstring& title,
+    const auto_control_history_metrics& metrics
+) {
+    if (session_id == 0 ||
+        session_id ==
+            g_auto_control_history_suppressed_session_id ||
+        metrics.trigger_count == 0) {
+        return;
+    }
+
+    ensure_auto_control_history_loaded();
+
+    auto iterator = std::find_if(
+        g_auto_control_history_entries.begin(),
+        g_auto_control_history_entries.end(),
+        [session_id](const auto_control_history_entry& entry) {
+            return entry.session_id == session_id;
+        }
+    );
+
+    bool changed = false;
+
+    if (iterator == g_auto_control_history_entries.end()) {
+        auto_control_history_entry entry;
+        entry.timestamp = timestamp;
+        entry.session_id = session_id;
+        entry.artist = artist;
+        entry.title = title;
+        entry.profile_id = valid_recognized_profile_id(
+            metrics.profile_id
+        )
+            ? metrics.profile_id
+            : static_cast<int>(recognized_profile::custom);
+
+        g_auto_control_history_entries.insert(
+            g_auto_control_history_entries.begin(),
+            std::move(entry)
+        );
+        iterator = g_auto_control_history_entries.begin();
+        changed = true;
+    }
+
+    auto& entry = *iterator;
+
+    if (!artist.empty() && entry.artist != artist) {
+        entry.artist = artist;
+        changed = true;
+    }
+    if (!title.empty() && entry.title != title) {
+        entry.title = title;
+        changed = true;
+    }
+
+    const int profile_id = valid_recognized_profile_id(
+        metrics.profile_id
+    )
+        ? metrics.profile_id
+        : static_cast<int>(recognized_profile::custom);
+
+    if (entry.trigger_count == 0) {
+        if (entry.profile_id != profile_id) {
+            entry.profile_id = profile_id;
+            changed = true;
+        }
+    }
+    else if (entry.profile_id != profile_id) {
+        const int custom_profile_id =
+            static_cast<int>(recognized_profile::custom);
+        if (entry.profile_id != custom_profile_id) {
+            entry.profile_id = custom_profile_id;
+            changed = true;
+        }
+    }
+
+    const int combined_reason =
+        entry.reason_mask | metrics.reason_mask;
+    if (entry.reason_mask != combined_reason) {
+        entry.reason_mask = combined_reason;
+        changed = true;
+    }
+
+    const double maximum_attenuation = std::max(
+        entry.maximum_attenuation_db,
+        metrics.maximum_attenuation_db
+    );
+    if (std::fabs(
+            entry.maximum_attenuation_db -
+            maximum_attenuation
+        ) > 0.0005) {
+        entry.maximum_attenuation_db = maximum_attenuation;
+        changed = true;
+    }
+
+    if (entry.trigger_count <= metrics.trigger_count &&
+        entry.recovered != metrics.recovered) {
+        entry.recovered = metrics.recovered;
+        changed = true;
+    }
+    if (entry.trigger_count < metrics.trigger_count) {
+        entry.trigger_count = metrics.trigger_count;
+        changed = true;
+    }
+    if (!entry.adjustment_limit_reached &&
+        metrics.adjustment_limit_reached) {
+        entry.adjustment_limit_reached = true;
+        changed = true;
+    }
+    if (g_auto_control_history_entries.size() >
+        kMaximumAutoControlHistoryEntries) {
+        g_auto_control_history_entries.resize(
+            kMaximumAutoControlHistoryEntries
+        );
+        changed = true;
+    }
+
+    if (changed) {
+        save_auto_control_history();
+    }
+}
+
+std::wstring history_title_fallback_from_path(
+    const char* path_utf8
+) {
+    std::wstring path = utf8_to_wide(path_utf8);
+
+    if (path.empty()) {
+        return {};
+    }
+
+    const t_size separator = path.find_last_of(L"\\/");
+    if (separator != std::wstring::npos) {
+        path.erase(0, separator + 1);
+    }
+
+    const t_size query = path.find_first_of(L"?#");
+    if (query != std::wstring::npos) {
+        path.erase(query);
+    }
+
+    const t_size extension = path.find_last_of(L'.');
+    if (extension != std::wstring::npos && extension > 0) {
+        path.erase(extension);
+    }
+
+    return path;
+}
+
+void limit_history_metadata_length(std::wstring& value) {
+    if (value.size() > kMaximumHistoryMetadataCharacters) {
+        value.resize(kMaximumHistoryMetadataCharacters);
+
+        if (!value.empty() &&
+            value.back() >= 0xd800 &&
+            value.back() <= 0xdbff) {
+            value.pop_back();
+        }
+    }
+}
+
+void history_metadata_from_info(
+    const file_info& info,
+    std::wstring& artist,
+    std::wstring& title
+) {
+    const char* artist_value = info.meta_get("artist", 0);
+    const char* title_value = info.meta_get("title", 0);
+
+    if (artist_value != nullptr) {
+        artist = utf8_to_wide(artist_value);
+    }
+    if (title_value != nullptr) {
+        title = utf8_to_wide(title_value);
+    }
+
+    limit_history_metadata_length(artist);
+    limit_history_metadata_length(title);
+}
+
+void history_metadata_from_handle(
+    const metadb_handle_ptr& handle,
+    std::wstring& artist,
+    std::wstring& title
+) {
+    artist.clear();
+    title.clear();
+
+    if (handle.is_empty()) {
+        return;
+    }
+
+    try {
+        const auto info = handle->get_info_ref();
+        history_metadata_from_info(
+            info->info(),
+            artist,
+            title
+        );
+    }
+    catch (...) {
+    }
+
+    if (title.empty()) {
+        title = history_title_fallback_from_path(
+            handle->get_path()
+        );
+    }
+
+    limit_history_metadata_length(artist);
+    limit_history_metadata_length(title);
+}
+
+class auto_control_history_play_callback
+    : public play_callback_static {
+public:
+    uint32_t get_flags() override {
+        return
+            flag_on_playback_new_track |
+            flag_on_playback_stop |
+            flag_on_playback_time |
+            flag_on_playback_edited |
+            flag_on_playback_dynamic_info_track;
+    }
+
+    void on_playback_new_track(
+        metadb_handle_ptr track
+    ) override {
+        finish_current_track();
+        start_new_track(track);
+    }
+
+    void on_playback_stop(
+        play_control::t_stop_reason
+    ) override {
+        finish_current_track();
+    }
+
+    void on_playback_time(double) override {
+        capture_current_track(
+            current_auto_control_history_metrics()
+        );
+    }
+
+    void on_playback_edited(
+        metadb_handle_ptr track
+    ) override {
+        if (!m_active) {
+            return;
+        }
+
+        std::wstring artist;
+        std::wstring title;
+        history_metadata_from_handle(track, artist, title);
+
+        if (!artist.empty()) {
+            m_artist = std::move(artist);
+        }
+        if (!title.empty()) {
+            m_title = std::move(title);
+        }
+    }
+
+    void on_playback_dynamic_info_track(
+        const file_info& info
+    ) override {
+        if (!m_active) {
+            return;
+        }
+
+        std::wstring artist = m_artist;
+        std::wstring title = m_title;
+        history_metadata_from_info(info, artist, title);
+
+        if (artist == m_artist && title == m_title) {
+            return;
+        }
+
+        finish_current_track();
+        start_new_track(artist, title);
+    }
+
+    void on_playback_dynamic_info(
+        const file_info&
+    ) override {
+    }
+
+    void on_playback_pause(bool) override {
+    }
+
+    void on_playback_seek(double) override {
+    }
+
+    void on_playback_starting(
+        play_control::t_track_command,
+        bool
+    ) override {
+    }
+
+    void on_volume_change(float) override {
+    }
+
+private:
+    void start_new_track(
+        const metadb_handle_ptr& track
+    ) {
+        std::wstring artist;
+        std::wstring title;
+        history_metadata_from_handle(track, artist, title);
+        start_new_track(artist, title);
+    }
+
+    void start_new_track(
+        const std::wstring& artist,
+        const std::wstring& title
+    ) {
+        m_artist = artist;
+        m_title = title;
+        m_timestamp = current_filetime_value();
+        m_session_id =
+            g_auto_control_history_next_session_id++;
+        g_auto_control_history_active_session_id = m_session_id;
+        g_history_active_session_id.store(
+            m_session_id,
+            std::memory_order_relaxed
+        );
+        m_active = true;
+
+        g_history_track_reset_request.fetch_add(
+            1,
+            std::memory_order_relaxed
+        );
+    }
+
+    void capture_current_track(
+        const auto_control_history_metrics& metrics
+    ) {
+        if (!m_active) {
+            return;
+        }
+
+        update_auto_control_history_entry(
+            m_session_id,
+            m_timestamp,
+            m_artist,
+            m_title,
+            metrics
+        );
+    }
+
+    void finish_current_track() {
+        if (!m_active) {
+            return;
+        }
+
+        const unsigned long long final_session_id =
+            g_history_final_session_id.load(
+                std::memory_order_relaxed
+            );
+
+        if (final_session_id == m_session_id) {
+            capture_current_track(
+                final_auto_control_history_metrics()
+            );
+        }
+        else {
+            capture_current_track(
+                current_auto_control_history_metrics()
+            );
+        }
+
+        m_active = false;
+        m_artist.clear();
+        m_title.clear();
+        m_timestamp = 0;
+        m_session_id = 0;
+        g_auto_control_history_active_session_id = 0;
+        g_history_active_session_id.store(
+            0,
+            std::memory_order_relaxed
+        );
+    }
+
+    bool m_active = false;
+    std::wstring m_artist;
+    std::wstring m_title;
+    unsigned long long m_timestamp = 0;
+    unsigned long long m_session_id = 0;
+};
+
+FB2K_SERVICE_FACTORY(auto_control_history_play_callback);
 
 void make_preset(const r128_settings& value, dsp_preset& out) {
     dsp_preset_builder builder;
@@ -1055,6 +1877,7 @@ constexpr localized_control_text kPrimaryUiText[] = {
     { IDC_LANGUAGE_LABEL, L"表示言語：", L"Display language:" },
     { IDC_RESET_MEASUREMENT, L"測定リセット", L"Reset measurement" },
     { IDC_COPY_DIAGNOSTICS, L"診断コピー", L"Copy diagnostics" },
+    { IDC_SHOW_AUTO_HISTORY, L"自動制御履歴", L"Automatic-Control History" },
     { IDC_SHOW_DIAGNOSTIC_HELP, L"用語集", L"Glossary" },
     { IDC_DEFAULTS, L"初期設定", L"Defaults" },
     { IDC_APPLY_SETTINGS, L"適用", L"Apply" },
@@ -1877,6 +2700,602 @@ bool copy_unicode_text_to_clipboard(HWND wnd, const std::wstring& value) {
     return success;
 }
 
+UINT dpi_for_window_or_default(HWND wnd);
+
+constexpr UINT_PTR kHistoryDialogTimerId = 2;
+constexpr UINT kHistoryDialogRefreshMilliseconds = 1000;
+
+struct auto_control_history_dialog_context {
+    fb2k::CCoreDarkModeHooks dark_mode;
+    unsigned long long displayed_revision =
+        std::numeric_limits<unsigned long long>::max();
+};
+
+std::wstring history_timestamp_to_text(
+    unsigned long long timestamp
+) {
+    ULARGE_INTEGER value = {};
+    value.QuadPart = timestamp;
+
+    FILETIME utc = {};
+    utc.dwLowDateTime = value.LowPart;
+    utc.dwHighDateTime = value.HighPart;
+
+    FILETIME local = {};
+    SYSTEMTIME system_time = {};
+
+    if (!FileTimeToLocalFileTime(&utc, &local) ||
+        !FileTimeToSystemTime(&local, &system_time)) {
+        return ui_text(L"時刻不明", L"Unknown time");
+    }
+
+    wchar_t text[32] = {};
+    swprintf_s(
+        text,
+        L"%04u-%02u-%02u %02u:%02u:%02u",
+        static_cast<unsigned>(system_time.wYear),
+        static_cast<unsigned>(system_time.wMonth),
+        static_cast<unsigned>(system_time.wDay),
+        static_cast<unsigned>(system_time.wHour),
+        static_cast<unsigned>(system_time.wMinute),
+        static_cast<unsigned>(system_time.wSecond)
+    );
+    return text;
+}
+
+std::wstring history_single_line_text(
+    const std::wstring& value,
+    const wchar_t* fallback
+) {
+    std::wstring result = value.empty()
+        ? std::wstring(fallback)
+        : value;
+
+    for (wchar_t& character : result) {
+        if (character == L'\t' ||
+            character == L'\r' ||
+            character == L'\n') {
+            character = L' ';
+        }
+    }
+
+    return result;
+}
+
+const wchar_t* history_profile_to_text(int profile_id) {
+    if (!valid_recognized_profile_id(profile_id)) {
+        profile_id =
+            static_cast<int>(recognized_profile::custom);
+    }
+
+    return recognized_profile_name(
+        static_cast<recognized_profile>(profile_id)
+    );
+}
+
+void initialize_auto_control_history_columns(HWND list) {
+    if (list == nullptr) {
+        return;
+    }
+
+    while (ListView_DeleteColumn(list, 0)) {
+    }
+
+    const wchar_t* headers[] = {
+        ui_text(L"再生日時", L"Played"),
+        ui_text(L"曲名", L"Title"),
+        ui_text(L"アーティスト", L"Artist"),
+        ui_text(L"プリセット", L"Preset"),
+        ui_text(L"発動理由", L"Trigger reason"),
+        ui_text(L"最大自動減衰", L"Max attenuation"),
+        ui_text(L"発動回数", L"Activations"),
+        ui_text(L"上限", L"Limit"),
+        ui_text(L"復帰", L"Recovery")
+    };
+
+    const int base_widths[] = {
+        132, 200, 150, 150, 140, 105, 78, 64, 82
+    };
+    const UINT dpi = dpi_for_window_or_default(list);
+
+    for (int index = 0;
+         index < static_cast<int>(std::size(headers));
+         ++index) {
+        LVCOLUMNW column = {};
+        column.mask = LVCF_TEXT | LVCF_WIDTH | LVCF_FMT;
+        column.pszText = const_cast<LPWSTR>(headers[index]);
+        column.cx = MulDiv(base_widths[index], dpi, 96);
+        column.fmt = index >= 5
+            ? LVCFMT_CENTER
+            : LVCFMT_LEFT;
+        SendMessageW(
+            list,
+            LVM_INSERTCOLUMNW,
+            static_cast<WPARAM>(index),
+            reinterpret_cast<LPARAM>(&column)
+        );
+    }
+}
+
+void set_auto_control_history_cell(
+    HWND list,
+    int row,
+    int column,
+    const std::wstring& text
+) {
+    LVITEMW item = {};
+    item.mask = LVIF_TEXT;
+    item.iItem = row;
+    item.iSubItem = column;
+    item.pszText = const_cast<LPWSTR>(text.c_str());
+
+    SendMessageW(
+        list,
+        LVM_SETITEMW,
+        0,
+        reinterpret_cast<LPARAM>(&item)
+    );
+}
+
+void refresh_auto_control_history_list(
+    HWND wnd,
+    auto_control_history_dialog_context* context,
+    bool force
+) {
+    ensure_auto_control_history_loaded();
+
+    if (context != nullptr &&
+        !force &&
+        context->displayed_revision ==
+            g_auto_control_history_revision) {
+        return;
+    }
+
+    HWND list = GetDlgItem(wnd, IDC_HISTORY_LIST);
+    if (list == nullptr) {
+        return;
+    }
+
+    const int selected_row = ListView_GetNextItem(
+        list,
+        -1,
+        LVNI_SELECTED
+    );
+
+    ListView_DeleteAllItems(list);
+
+    for (t_size index = 0;
+         index < g_auto_control_history_entries.size();
+         ++index) {
+        const auto& entry =
+            g_auto_control_history_entries[index];
+
+        const std::wstring timestamp =
+            history_timestamp_to_text(entry.timestamp);
+        const std::wstring title = history_single_line_text(
+            entry.title,
+            ui_text(L"不明な曲", L"Unknown track")
+        );
+        const std::wstring artist = history_single_line_text(
+            entry.artist,
+            ui_text(L"不明", L"Unknown")
+        );
+        const std::wstring profile =
+            history_profile_to_text(entry.profile_id);
+        const std::wstring reason =
+            auto_control_reason_to_text(entry.reason_mask);
+
+        wchar_t attenuation[32] = {};
+        swprintf_s(
+            attenuation,
+            L"%.2f dB",
+            entry.maximum_attenuation_db
+        );
+
+        wchar_t trigger_count[24] = {};
+        swprintf_s(
+            trigger_count,
+            ui_text(L"%u 回", L"%u"),
+            entry.trigger_count
+        );
+
+        LVITEMW item = {};
+        item.mask = LVIF_TEXT;
+        item.iItem = static_cast<int>(index);
+        item.iSubItem = 0;
+        item.pszText = const_cast<LPWSTR>(timestamp.c_str());
+
+        const int row = static_cast<int>(
+            SendMessageW(
+                list,
+                LVM_INSERTITEMW,
+                0,
+                reinterpret_cast<LPARAM>(&item)
+            )
+        );
+        if (row < 0) {
+            continue;
+        }
+
+        set_auto_control_history_cell(list, row, 1, title);
+        set_auto_control_history_cell(list, row, 2, artist);
+        set_auto_control_history_cell(list, row, 3, profile);
+        set_auto_control_history_cell(list, row, 4, reason);
+        set_auto_control_history_cell(
+            list,
+            row,
+            5,
+            attenuation
+        );
+        set_auto_control_history_cell(
+            list,
+            row,
+            6,
+            trigger_count
+        );
+        set_auto_control_history_cell(
+            list,
+            row,
+            7,
+            entry.adjustment_limit_reached
+                ? ui_text(L"到達", L"Reached")
+                : ui_text(L"なし", L"No")
+        );
+        set_auto_control_history_cell(
+            list,
+            row,
+            8,
+            entry.recovered
+                ? ui_text(L"復帰済み", L"Recovered")
+                : ui_text(L"未復帰", L"Not yet")
+        );
+    }
+
+    if (selected_row >= 0 &&
+        selected_row <
+            static_cast<int>(
+                g_auto_control_history_entries.size()
+            )) {
+        ListView_SetItemState(
+            list,
+            selected_row,
+            LVIS_SELECTED | LVIS_FOCUSED,
+            LVIS_SELECTED | LVIS_FOCUSED
+        );
+    }
+
+    wchar_t summary[160] = {};
+    if (g_auto_control_history_entries.empty()) {
+        swprintf_s(
+            summary,
+            L"%s",
+            ui_text(
+                L"自動制御が発動した履歴はまだありません。",
+                L"No automatic-control activations have been recorded yet."
+            )
+        );
+    }
+    else {
+        swprintf_s(
+            summary,
+            ui_text(
+                L"自動制御が発動した最新100曲を表示します（現在 %zu 件）。",
+                L"Shows up to 100 tracks with automatic-control activity "
+                L"(%zu currently)."
+            ),
+            g_auto_control_history_entries.size()
+        );
+    }
+    SetDlgItemTextW(wnd, IDC_HISTORY_SUMMARY, summary);
+
+    EnableWindow(
+        GetDlgItem(wnd, IDC_HISTORY_DELETE_SELECTED),
+        ListView_GetNextItem(list, -1, LVNI_SELECTED) >= 0
+    );
+    EnableWindow(
+        GetDlgItem(wnd, IDC_HISTORY_DELETE_ALL),
+        !g_auto_control_history_entries.empty()
+    );
+    EnableWindow(
+        GetDlgItem(wnd, IDC_HISTORY_COPY),
+        !g_auto_control_history_entries.empty()
+    );
+
+    if (context != nullptr) {
+        context->displayed_revision =
+            g_auto_control_history_revision;
+    }
+}
+
+std::wstring build_auto_control_history_report() {
+    ensure_auto_control_history_loaded();
+
+    std::wostringstream output;
+    output
+        << ui_text(
+            L"再生日時\t曲名\tアーティスト\tプリセット\t"
+            L"発動理由\t最大自動減衰量\t発動回数\t調整上限\t安全復帰\r\n",
+            L"Played\tTitle\tArtist\tPreset\tTrigger reason\t"
+            L"Maximum automatic attenuation\tActivations\t"
+            L"Adjustment limit\tSafe recovery\r\n"
+        );
+
+    for (const auto& entry : g_auto_control_history_entries) {
+        const std::wstring title = history_single_line_text(
+            entry.title,
+            ui_text(L"不明な曲", L"Unknown track")
+        );
+        const std::wstring artist = history_single_line_text(
+            entry.artist,
+            ui_text(L"不明", L"Unknown")
+        );
+
+        output
+            << history_timestamp_to_text(entry.timestamp) << L'\t'
+            << title << L'\t'
+            << artist << L'\t'
+            << history_profile_to_text(entry.profile_id) << L'\t'
+            << auto_control_reason_to_text(entry.reason_mask) << L'\t';
+
+        wchar_t attenuation[32] = {};
+        swprintf_s(
+            attenuation,
+            L"%.2f dB",
+            entry.maximum_attenuation_db
+        );
+
+        output
+            << attenuation << L'\t'
+            << entry.trigger_count << L'\t'
+            << (entry.adjustment_limit_reached
+                ? ui_text(L"到達", L"Reached")
+                : ui_text(L"なし", L"No")) << L'\t'
+            << (entry.recovered
+                ? ui_text(L"復帰済み", L"Recovered")
+                : ui_text(L"未復帰", L"Not yet"))
+            << L"\r\n";
+    }
+
+    return output.str();
+}
+
+void delete_selected_auto_control_history_entry(
+    HWND wnd,
+    auto_control_history_dialog_context* context
+) {
+    HWND list = GetDlgItem(wnd, IDC_HISTORY_LIST);
+    const int selected = list != nullptr
+        ? ListView_GetNextItem(list, -1, LVNI_SELECTED)
+        : -1;
+
+    if (selected < 0 ||
+        selected >= static_cast<int>(
+            g_auto_control_history_entries.size()
+        )) {
+        return;
+    }
+
+    const auto& entry =
+        g_auto_control_history_entries[
+            static_cast<t_size>(selected)
+        ];
+    if (entry.session_id != 0 &&
+        entry.session_id ==
+            g_auto_control_history_active_session_id) {
+        g_auto_control_history_suppressed_session_id =
+            entry.session_id;
+    }
+
+    g_auto_control_history_entries.erase(
+        g_auto_control_history_entries.begin() + selected
+    );
+    save_auto_control_history();
+    refresh_auto_control_history_list(wnd, context, true);
+}
+
+void delete_all_auto_control_history_entries(
+    HWND wnd,
+    auto_control_history_dialog_context* context
+) {
+    if (g_auto_control_history_entries.empty()) {
+        return;
+    }
+
+    if (MessageBoxW(
+            wnd,
+            ui_text(
+                L"自動制御履歴をすべて削除します。\n"
+                L"この操作は元に戻せません。続けますか？",
+                L"Delete all automatic-control history?\n"
+                L"This action cannot be undone."
+            ),
+            ui_text(
+                L"自動制御履歴の削除",
+                L"Delete automatic-control history"
+            ),
+            MB_YESNO | MB_ICONWARNING | MB_DEFBUTTON2
+        ) != IDYES) {
+        return;
+    }
+
+    g_auto_control_history_suppressed_session_id =
+        g_auto_control_history_active_session_id;
+    g_auto_control_history_entries.clear();
+    save_auto_control_history();
+    refresh_auto_control_history_list(wnd, context, true);
+}
+
+INT_PTR CALLBACK auto_control_history_dialog_proc(
+    HWND wnd,
+    UINT message,
+    WPARAM wp,
+    LPARAM lp
+) {
+    auto* context =
+        reinterpret_cast<auto_control_history_dialog_context*>(
+            GetWindowLongPtrW(wnd, GWLP_USERDATA)
+        );
+
+    switch (message) {
+    case WM_INITDIALOG: {
+        INITCOMMONCONTROLSEX controls = {};
+        controls.dwSize = sizeof(controls);
+        controls.dwICC = ICC_LISTVIEW_CLASSES;
+        InitCommonControlsEx(&controls);
+
+        context = new auto_control_history_dialog_context();
+        SetWindowLongPtrW(
+            wnd,
+            GWLP_USERDATA,
+            reinterpret_cast<LONG_PTR>(context)
+        );
+        context->dark_mode.AddDialogWithControls(wnd);
+
+        SetWindowTextW(
+            wnd,
+            ui_text(
+                L"R128 音量ノーマライザー 自動制御履歴",
+                L"R128 Loudness Normalizer - Automatic-Control History"
+            )
+        );
+        SetDlgItemTextW(
+            wnd,
+            IDC_HISTORY_COPY,
+            ui_text(L"履歴コピー", L"Copy History")
+        );
+        SetDlgItemTextW(
+            wnd,
+            IDC_HISTORY_DELETE_SELECTED,
+            ui_text(L"選択削除", L"Delete Selected")
+        );
+        SetDlgItemTextW(
+            wnd,
+            IDC_HISTORY_DELETE_ALL,
+            ui_text(L"すべて削除", L"Delete All")
+        );
+        SetDlgItemTextW(
+            wnd,
+            IDOK,
+            ui_text(L"閉じる", L"Close")
+        );
+
+        HWND list = GetDlgItem(wnd, IDC_HISTORY_LIST);
+        ListView_SetExtendedListViewStyle(
+            list,
+            LVS_EX_FULLROWSELECT |
+            LVS_EX_GRIDLINES |
+            LVS_EX_DOUBLEBUFFER
+        );
+        initialize_auto_control_history_columns(list);
+        refresh_auto_control_history_list(
+            wnd,
+            context,
+            true
+        );
+        SetTimer(
+            wnd,
+            kHistoryDialogTimerId,
+            kHistoryDialogRefreshMilliseconds,
+            nullptr
+        );
+        return TRUE;
+    }
+
+    case WM_TIMER:
+        if (wp == kHistoryDialogTimerId) {
+            refresh_auto_control_history_list(
+                wnd,
+                context,
+                false
+            );
+            return TRUE;
+        }
+        break;
+
+    case WM_NOTIFY:
+        if (lp != 0) {
+            const auto* header =
+                reinterpret_cast<const NMHDR*>(lp);
+
+            if (header->idFrom == IDC_HISTORY_LIST &&
+                header->code == LVN_ITEMCHANGED) {
+                HWND list = GetDlgItem(wnd, IDC_HISTORY_LIST);
+                EnableWindow(
+                    GetDlgItem(
+                        wnd,
+                        IDC_HISTORY_DELETE_SELECTED
+                    ),
+                    ListView_GetNextItem(
+                        list,
+                        -1,
+                        LVNI_SELECTED
+                    ) >= 0
+                );
+                return TRUE;
+            }
+        }
+        break;
+
+    case WM_COMMAND:
+        switch (LOWORD(wp)) {
+        case IDC_HISTORY_COPY:
+            if (copy_unicode_text_to_clipboard(
+                    wnd,
+                    build_auto_control_history_report()
+                )) {
+                MessageBoxW(
+                    wnd,
+                    ui_text(
+                        L"自動制御履歴をクリップボードへコピーしました。",
+                        L"Automatic-control history copied to the clipboard."
+                    ),
+                    ui_text(
+                        L"履歴コピー",
+                        L"Copy History"
+                    ),
+                    MB_OK | MB_ICONINFORMATION
+                );
+            }
+            return TRUE;
+
+        case IDC_HISTORY_DELETE_SELECTED:
+            delete_selected_auto_control_history_entry(
+                wnd,
+                context
+            );
+            return TRUE;
+
+        case IDC_HISTORY_DELETE_ALL:
+            delete_all_auto_control_history_entries(
+                wnd,
+                context
+            );
+            return TRUE;
+
+        case IDOK:
+        case IDCANCEL:
+            EndDialog(wnd, LOWORD(wp));
+            return TRUE;
+        }
+        break;
+
+    case WM_CLOSE:
+        EndDialog(wnd, IDCANCEL);
+        return TRUE;
+
+    case WM_DESTROY:
+        KillTimer(wnd, kHistoryDialogTimerId);
+        return TRUE;
+
+    case WM_NCDESTROY:
+        SetWindowLongPtrW(wnd, GWLP_USERDATA, 0);
+        delete context;
+        return FALSE;
+    }
+
+    return FALSE;
+}
+
 std::wstring format_diagnostic_number(
     double value,
     const wchar_t* unit,
@@ -2041,6 +3460,18 @@ std::wstring build_diagnostic_report() {
         g_diagnostic_auto_control_reason_mask.load(
             std::memory_order_relaxed
         );
+    const unsigned auto_control_trigger_count =
+        g_history_auto_control_trigger_count.load(
+            std::memory_order_relaxed
+        );
+    const int latest_auto_control_reason_mask =
+        g_history_latest_auto_control_reason_mask.load(
+            std::memory_order_relaxed
+        );
+    const bool latest_auto_control_recovered =
+        g_history_recovered.load(
+            std::memory_order_relaxed
+        ) != 0;
     const unsigned sample_rate_hz =
         g_diagnostic_sample_rate_hz.load(
             std::memory_order_relaxed
@@ -2222,12 +3653,20 @@ std::wstring build_diagnostic_report() {
         format_diagnostic_number(final_lra_lu, L"LU", 1);
     const std::wstring final_max_true_peak =
         format_diagnostic_number(final_max_true_peak_dbtp, L"dBTP", 2);
+    const std::wstring auto_control_reason =
+        diagnostic_auto_control_reason_text(
+            auto_control_reason_mask,
+            latest_auto_control_reason_mask,
+            current_processing_state,
+            auto_control_trigger_count,
+            latest_auto_control_recovered
+        );
 
     wchar_t report[6656] = {};
     swprintf_s(
         report,
         ui_text(
-        L"R128 音量ノーマライザー 1.7.0\r\n"
+        L"R128 音量ノーマライザー 1.8.0\r\n"
         L"再生状態: %s\r\n"
         L"補正状態: %s\r\n"
         L"補正ゲイン固定: %s\r\n"
@@ -2284,7 +3723,7 @@ std::wstring build_diagnostic_report() {
         L"処理評価: %s\r\n"
         L"サンプルレート: %u Hz\r\n"
         L"推定CPU負荷: %.2f %%\r\n",
-        L"R128 Loudness Normalizer 1.7.0\r\n"
+        L"R128 Loudness Normalizer 1.8.0\r\n"
         L"Playback state: %s\r\n"
         L"Normalization state: %s\r\n"
         L"Gain lock: %s\r\n"
@@ -2381,7 +3820,7 @@ std::wstring build_diagnostic_report() {
             ? current_processing_state_to_text(current_processing_state)
             : ui_text(L"待機中", L"Standby"),
         stream_active
-            ? auto_control_reason_to_text(auto_control_reason_mask)
+            ? auto_control_reason.c_str()
             : ui_text(L"待機中", L"Standby"),
         normalization_gain_db,
         applied_gain_db,
@@ -2562,6 +4001,18 @@ void refresh_diagnostic_controls(HWND wnd) {
         g_diagnostic_auto_control_reason_mask.load(
             std::memory_order_relaxed
         );
+    const unsigned auto_control_trigger_count =
+        g_history_auto_control_trigger_count.load(
+            std::memory_order_relaxed
+        );
+    const int latest_auto_control_reason_mask =
+        g_history_latest_auto_control_reason_mask.load(
+            std::memory_order_relaxed
+        );
+    const bool latest_auto_control_recovered =
+        g_history_recovered.load(
+            std::memory_order_relaxed
+        ) != 0;
     const unsigned sample_rate_hz =
         g_diagnostic_sample_rate_hz.load(
             std::memory_order_relaxed
@@ -2722,12 +4173,20 @@ void refresh_diagnostic_controls(HWND wnd) {
             )
             : ui_text(L"待機中", L"Standby")
     );
+    const std::wstring displayed_auto_control_reason =
+        stream_active
+            ? diagnostic_auto_control_reason_text(
+                auto_control_reason_mask,
+                latest_auto_control_reason_mask,
+                displayed_current_processing_state,
+                auto_control_trigger_count,
+                latest_auto_control_recovered
+            )
+            : std::wstring(ui_text(L"待機中", L"Standby"));
     set_control_text(
         wnd,
         IDC_DIAG_AUTO_REASON,
-        stream_active
-            ? auto_control_reason_to_text(auto_control_reason_mask)
-            : ui_text(L"待機中", L"Standby")
+        displayed_auto_control_reason.c_str()
     );
     if (displayed_sample_rate > 0) {
         swprintf_s(text, L"%u Hz", displayed_sample_rate);
@@ -3195,6 +4654,13 @@ constexpr glossary_entry kGlossaryEntries[] = {
         L"「自動制御の理由」で発動要因を確認できます。"
     },
     {
+        L"自動制御履歴",
+        L"自動制御が実際に発動した最新100曲を保存します。\r\n\r\n"
+        L"再生日時、曲名／アーティスト、プリセット、発動理由、"
+        L"最大自動減衰量、発動回数、調整上限、安全復帰を確認できます。"
+        L"短い監視だけで自動調整へ入らなかった曲は記録しません。"
+    },
+    {
         L"モダンブースト",
         L"R128補正にコンプレッサー、ソフトクリッパー、"
         L"True Peakリミッターを組み合わせる高密度モードです。\r\n\r\n"
@@ -3378,6 +4844,14 @@ constexpr glossary_entry kGlossaryEntriesEnglish[] = {
         L"Adds up to 6 dB of attenuation for every preset when processing "
         L"becomes too strong. The current positive amount appears as Automatic "
         L"attenuation, and the trigger appears as Automatic-control reason."
+    },
+    {
+        L"Automatic-Control History",
+        L"Stores up to 100 recent tracks where automatic control actually "
+        L"activated. Each entry includes playback time, title and artist, "
+        L"preset, trigger reason, maximum automatic attenuation, activation "
+        L"count, adjustment-limit status, and safe recovery. A brief "
+        L"Monitoring state without Auto-adjusting is not recorded."
     },
     {
         L"Modern Boost",
@@ -3808,6 +5282,13 @@ constexpr context_help_entry kContextHelpEntries[] = {
         L"現在の設定と診断結果をクリップボードへコピーします。"
     },
     {
+        IDC_SHOW_AUTO_HISTORY,
+        L"自動制御履歴",
+        L"自動制御が発動した最新100曲を一覧表示します。"
+        L"発動理由、最大自動減衰量、発動回数、調整上限への到達、"
+        L"安全復帰を確認できます。"
+    },
+    {
         IDC_SHOW_DIAGNOSTIC_HELP,
         L"用語集",
         L"用語一覧から、このコンポーネント内での意味と"
@@ -3930,6 +5411,8 @@ const wchar_t* english_control_title(
     case IDC_ORIGINAL_COMPARE: return L"Compare (hold)";
     case IDC_RESET_MEASUREMENT: return L"Reset measurement";
     case IDC_COPY_DIAGNOSTICS: return L"Copy diagnostics";
+    case IDC_SHOW_AUTO_HISTORY:
+        return L"Automatic-Control History";
     case IDC_SHOW_DIAGNOSTIC_HELP: return L"Glossary";
     default:
         break;
@@ -4074,6 +5557,11 @@ const wchar_t* english_context_help_description(int control_id) {
             L"from the current playback position.";
     case IDC_COPY_DIAGNOSTICS:
         return L"Copies the current settings and diagnostic results to the clipboard.";
+    case IDC_SHOW_AUTO_HISTORY:
+        return L"Shows up to 100 recent tracks where automatic control "
+            L"activated, including the trigger reason, maximum automatic "
+            L"attenuation, activation count, adjustment-limit status, "
+            L"and safe recovery.";
     case IDC_SHOW_DIAGNOSTIC_HELP:
         return L"Opens definitions and guidance for the terms and values used here.";
     default:
@@ -4338,7 +5826,7 @@ bool confirm_restore_defaults(HWND owner) {
 }
 
 constexpr wchar_t kLicenseCreditsText[] =
-    L"R128 リアルタイム音量ノーマライザー 1.7.0\r\n"
+    L"R128 リアルタイム音量ノーマライザー 1.8.0\r\n"
     L"\r\n"
     L"作者：Maximum\r\n"
     L"Copyright (c) 2026 Maximum\r\n"
@@ -4355,7 +5843,7 @@ constexpr wchar_t kLicenseCreditsText[] =
     L"THIRD-PARTY-NOTICES.txtをご覧ください。";
 
 constexpr wchar_t kLicenseCreditsTextEnglish[] =
-    L"R128 Real-time Loudness Normalizer 1.7.0\r\n"
+    L"R128 Real-time Loudness Normalizer 1.8.0\r\n"
     L"\r\n"
     L"Author: Maximum\r\n"
     L"Copyright (c) 2026 Maximum\r\n"
@@ -5495,6 +6983,15 @@ INT_PTR CALLBACK config_dialog_proc(HWND wnd, UINT message, WPARAM wp, LPARAM lp
             }
             return TRUE;
 
+        case IDC_SHOW_AUTO_HISTORY:
+            DialogBoxParamW(
+                core_api::get_my_instance(),
+                MAKEINTRESOURCEW(IDD_R128_AUTO_HISTORY),
+                wnd,
+                auto_control_history_dialog_proc,
+                0
+            );
+            return TRUE;
 
         case IDC_SHOW_DIAGNOSTIC_HELP:
             DialogBoxParamW(
@@ -5649,6 +7146,44 @@ public:
             g_measurement_reset_request.load(
                 std::memory_order_relaxed
             );
+        m_last_history_reset_request =
+            g_history_track_reset_request.load(
+                std::memory_order_relaxed
+            );
+        m_history_session_id =
+            g_history_active_session_id.load(
+                std::memory_order_relaxed
+            );
+
+        if (m_history_session_id != 0 &&
+            g_history_metrics_session_id.load(
+                std::memory_order_relaxed
+            ) == m_history_session_id) {
+            m_auto_control_trigger_count =
+                g_history_auto_control_trigger_count.load(
+                    std::memory_order_relaxed
+                );
+            m_auto_control_history_reason_mask =
+                g_history_auto_control_reason_mask.load(
+                    std::memory_order_relaxed
+                );
+            m_auto_control_latest_reason_mask =
+                g_history_latest_auto_control_reason_mask.load(
+                    std::memory_order_relaxed
+                );
+            m_track_max_auto_safety_reduction_db =
+                g_history_max_auto_attenuation_db.load(
+                    std::memory_order_relaxed
+                );
+            m_auto_control_limit_reached =
+                g_history_adjustment_limit_reached.load(
+                    std::memory_order_relaxed
+                ) != 0;
+            m_auto_control_latest_recovered =
+                g_history_recovered.load(
+                    std::memory_order_relaxed
+                ) != 0;
+        }
     }
 
     static GUID g_get_guid() {
@@ -5734,6 +7269,18 @@ public:
         if (reset_request != m_last_measurement_reset_request) {
             reset_measurement_state_only();
             m_last_measurement_reset_request = reset_request;
+        }
+
+        const unsigned long long history_reset_request =
+            g_history_track_reset_request.load(
+                std::memory_order_relaxed
+            );
+
+        if (history_reset_request !=
+            m_last_history_reset_request) {
+            reset_history_tracking_state_only();
+            m_last_history_reset_request =
+                history_reset_request;
         }
 
         const audio_sample* source_data = chunk->get_data();
@@ -6928,6 +8475,13 @@ private:
 
         if (current_reason_mask != 0) {
             m_auto_control_reason_mask |= current_reason_mask;
+
+            if (m_auto_control_engaged) {
+                m_auto_control_history_reason_mask |=
+                    current_reason_mask;
+                m_auto_control_latest_reason_mask |=
+                    current_reason_mask;
+            }
         }
 
         const double frame_seconds =
@@ -6980,7 +8534,13 @@ private:
             m_excessive_processing_seconds >= kAutoSafetyTriggerSeconds) {
             m_auto_control_engaged = true;
             m_auto_control_recovered = false;
+            m_auto_control_latest_recovered = false;
             m_auto_control_safe_seconds = 0.0;
+            ++m_auto_control_trigger_count;
+            m_auto_control_latest_reason_mask =
+                m_auto_control_reason_mask;
+            m_auto_control_history_reason_mask |=
+                m_auto_control_latest_reason_mask;
         }
 
         if (!m_auto_control_engaged &&
@@ -7044,6 +8604,10 @@ private:
             -kAutoSafetyMaximumReductionDb,
             0.0
         );
+        m_track_max_auto_safety_reduction_db = std::max(
+            m_track_max_auto_safety_reduction_db,
+            -m_safety_reduction_db
+        );
 
         const bool at_adjustment_limit =
             m_safety_reduction_db <= -kAutoSafetyMaximumReductionDb + 0.02;
@@ -7066,6 +8630,7 @@ private:
         }
         else if (m_auto_control_limit_seconds >= kAutoSafetyLimitHoldSeconds) {
             m_current_processing_state = 3;
+            m_auto_control_limit_reached = true;
         }
         else if (target_safety_db >= -0.001 &&
                  m_safety_reduction_db > -0.02 &&
@@ -7075,6 +8640,7 @@ private:
             m_auto_control_limit_seconds = 0.0;
             m_safety_reduction_db = 0.0;
             m_auto_control_recovered = true;
+            m_auto_control_latest_recovered = true;
             m_current_processing_state = 1;
         }
         else {
@@ -8219,6 +9785,41 @@ private:
     }
 
     void publish_final_track_summary() {
+        if (!m_history_final_published &&
+            m_history_session_id != 0) {
+            g_history_final_auto_control_trigger_count.store(
+                m_auto_control_trigger_count,
+                std::memory_order_relaxed
+            );
+            g_history_final_auto_control_reason_mask.store(
+                m_auto_control_history_reason_mask,
+                std::memory_order_relaxed
+            );
+            g_history_final_max_auto_attenuation_db.store(
+                m_track_max_auto_safety_reduction_db,
+                std::memory_order_relaxed
+            );
+            g_history_final_adjustment_limit_reached.store(
+                m_auto_control_limit_reached ? 1 : 0,
+                std::memory_order_relaxed
+            );
+            g_history_final_recovered.store(
+                m_auto_control_latest_recovered ? 1 : 0,
+                std::memory_order_relaxed
+            );
+            g_history_final_profile_id.store(
+                static_cast<int>(
+                    detect_recognized_profile(m_settings)
+                ),
+                std::memory_order_relaxed
+            );
+            g_history_final_session_id.store(
+                m_history_session_id,
+                std::memory_order_relaxed
+            );
+            m_history_final_published = true;
+        }
+
         if (m_processed_frames == 0 ||
             !std::isfinite(m_integrated_lufs) ||
             m_integrated_lufs <= -190.0) {
@@ -8394,6 +9995,40 @@ private:
             m_auto_control_reason_mask,
             std::memory_order_relaxed
         );
+        g_history_auto_control_trigger_count.store(
+            m_auto_control_trigger_count,
+            std::memory_order_relaxed
+        );
+        g_history_auto_control_reason_mask.store(
+            m_auto_control_history_reason_mask,
+            std::memory_order_relaxed
+        );
+        g_history_latest_auto_control_reason_mask.store(
+            m_auto_control_latest_reason_mask,
+            std::memory_order_relaxed
+        );
+        g_history_max_auto_attenuation_db.store(
+            m_track_max_auto_safety_reduction_db,
+            std::memory_order_relaxed
+        );
+        g_history_adjustment_limit_reached.store(
+            m_auto_control_limit_reached ? 1 : 0,
+            std::memory_order_relaxed
+        );
+        g_history_recovered.store(
+            m_auto_control_latest_recovered ? 1 : 0,
+            std::memory_order_relaxed
+        );
+        g_history_profile_id.store(
+            static_cast<int>(
+                detect_recognized_profile(m_settings)
+            ),
+            std::memory_order_relaxed
+        );
+        g_history_metrics_session_id.store(
+            m_history_session_id,
+            std::memory_order_relaxed
+        );
         g_diagnostic_original_compare_state.store(
             g_original_compare_request.load(
                 std::memory_order_relaxed
@@ -8516,6 +10151,55 @@ private:
         );
         g_diagnostic_last_update_tick.store(
             static_cast<unsigned long long>(GetTickCount64()),
+            std::memory_order_relaxed
+        );
+    }
+
+    void reset_history_tracking_state_only() {
+        m_history_session_id =
+            g_history_active_session_id.load(
+                std::memory_order_relaxed
+            );
+        m_auto_control_trigger_count = 0;
+        m_auto_control_history_reason_mask = 0;
+        m_auto_control_latest_reason_mask = 0;
+        m_track_max_auto_safety_reduction_db = 0.0;
+        m_auto_control_limit_reached = false;
+        m_auto_control_latest_recovered = false;
+        m_history_final_published = false;
+
+        g_history_auto_control_trigger_count.store(
+            0,
+            std::memory_order_relaxed
+        );
+        g_history_auto_control_reason_mask.store(
+            0,
+            std::memory_order_relaxed
+        );
+        g_history_latest_auto_control_reason_mask.store(
+            0,
+            std::memory_order_relaxed
+        );
+        g_history_max_auto_attenuation_db.store(
+            0.0,
+            std::memory_order_relaxed
+        );
+        g_history_adjustment_limit_reached.store(
+            0,
+            std::memory_order_relaxed
+        );
+        g_history_recovered.store(
+            0,
+            std::memory_order_relaxed
+        );
+        g_history_profile_id.store(
+            static_cast<int>(
+                detect_recognized_profile(m_settings)
+            ),
+            std::memory_order_relaxed
+        );
+        g_history_metrics_session_id.store(
+            m_history_session_id,
             std::memory_order_relaxed
         );
     }
@@ -9136,6 +10820,14 @@ private:
     bool m_auto_control_engaged = false;
     bool m_auto_control_recovered = false;
     int m_auto_control_reason_mask = 0;
+    unsigned m_auto_control_trigger_count = 0;
+    int m_auto_control_history_reason_mask = 0;
+    int m_auto_control_latest_reason_mask = 0;
+    double m_track_max_auto_safety_reduction_db = 0.0;
+    bool m_auto_control_limit_reached = false;
+    bool m_auto_control_latest_recovered = false;
+    bool m_history_final_published = false;
+    unsigned long long m_history_session_id = 0;
     int m_current_processing_state = 0;
     int m_processing_risk_state = 0;
     int m_normalization_state = 0;
@@ -9148,6 +10840,7 @@ private:
     double m_gain_lock_remaining_seconds = 0.0;
     int m_gain_lock_state = 0;
     unsigned long long m_last_measurement_reset_request = 0;
+    unsigned long long m_last_history_reset_request = 0;
 };
 
 static dsp_factory_t<dsp_r128_normalizer> g_dsp_r128_normalizer_factory;

@@ -326,6 +326,8 @@ BEGIN
                     8, 325, 72, 15
     PUSHBUTTON      "診断コピー", IDC_COPY_DIAGNOSTICS,
                     84, 325, 68, 15
+    PUSHBUTTON      "自動制御履歴", IDC_SHOW_AUTO_HISTORY,
+                    156, 325, 132, 15
     PUSHBUTTON      "用語集", IDC_SHOW_DIAGNOSTIC_HELP,
                     292, 325, 58, 15
     PUSHBUTTON      "初期設定", IDC_DEFAULTS,
@@ -336,6 +338,29 @@ BEGIN
                     448, 325, 30, 15
     PUSHBUTTON      "取消", IDCANCEL,
                     482, 325, 30, 15
+END
+
+IDD_R128_AUTO_HISTORY DIALOGEX 0, 0, 700, 326
+STYLE DS_SHELLFONT | DS_MODALFRAME | DS_CENTER | WS_POPUP | WS_CAPTION |
+      WS_SYSMENU
+EXSTYLE WS_EX_CONTROLPARENT
+CAPTION "R128 音量ノーマライザー 自動制御履歴"
+FONT 9, "Yu Gothic UI"
+BEGIN
+    LTEXT           "自動制御が発動した最新100曲を表示します。",
+                    IDC_HISTORY_SUMMARY, 10, 9, 680, 14
+    CONTROL         "", IDC_HISTORY_LIST, WC_LISTVIEW,
+                    LVS_REPORT | LVS_SHOWSELALWAYS | LVS_SINGLESEL |
+                    WS_BORDER | WS_TABSTOP,
+                    10, 27, 680, 258
+    PUSHBUTTON      "履歴コピー", IDC_HISTORY_COPY,
+                    10, 298, 82, 17
+    PUSHBUTTON      "選択削除", IDC_HISTORY_DELETE_SELECTED,
+                    98, 298, 82, 17
+    PUSHBUTTON      "すべて削除", IDC_HISTORY_DELETE_ALL,
+                    186, 298, 82, 17
+    DEFPUSHBUTTON   "閉じる", IDOK,
+                    624, 298, 66, 17
 END
 
 IDD_R128_GLOSSARY DIALOGEX 0, 0, 400, 276

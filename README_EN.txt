@@ -1,10 +1,10 @@
-R128 Real-time Loudness Normalizer v1.7.0
+R128 Real-time Loudness Normalizer v1.8.0
 
 For foobar2000 2.x / Windows x64
 
 INSTALLATION
 
-1. Open foo_r128_normalizer_v1.7.0.fb2k-component.
+1. Open foo_r128_normalizer_v1.8.0.fb2k-component.
 2. Follow the foobar2000 installation prompt.
 3. Restart foobar2000.
 
@@ -33,16 +33,27 @@ Language selection is stored separately from DSP presets.
 
 AUTOMATIC SAFETY CONTROL
 
-v1.7.0 shows Normal, Monitoring, Auto-adjusting, and Adjustment limit states.
+v1.8.0 shows Normal, Monitoring, Auto-adjusting, and Adjustment limit states.
 After safe recovery, the current processing state returns to Normal.
 Diagnostics also identify True Peak exceedance, excessive limiting, excessive
 clipping, or multiple factors, and show the automatic attenuation amount as a
 positive dB value.
 
+AUTOMATIC-CONTROL HISTORY
+
+Open Automatic-Control History from the Diagnostics page. It retains up to
+100 recent tracks where automatic control actually activated. Each entry
+contains playback time, title and artist, preset, trigger reason, maximum
+automatic attenuation, activation count, adjustment-limit status, and safe
+recovery. The list persists across restarts and can be copied, selectively
+deleted, or cleared. A brief Monitoring state that never reaches
+Auto-adjusting is not added.
+
 COMPATIBILITY
 
-v1.7.0 retains preset format v7, existing DSP and menu GUIDs, preset values,
-audio-processing thresholds, and the 6 dB automatic-attenuation limit.
+v1.8.0 retains preset format v7, existing DSP and menu GUIDs, preset values,
+audio-processing thresholds, and the 6 dB automatic-attenuation limit. History
+storage is separate from DSP presets.
 
 LICENSE
 
