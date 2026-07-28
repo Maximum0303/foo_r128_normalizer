@@ -1,22 +1,25 @@
-# v1.6.1 — 表示品質と安定性の改善
+# v1.7.0 — リアルタイム自動制御の見える化
 
 ## 変更内容
 
-- 英語表示で処理強度の範囲が日本語記号のまま残る問題を修正
-- Windows表示倍率に合わせてツールチップの最大幅を調整
-- DPI変更時にツールチップ幅を再計算
-- 200～250%表示で設定画面が作業領域を超える場合、画面内へ収めて
-  必要な方向だけスクロールできるように改善
-- 設定画面を開いたままfoobar2000のテーマを変更した場合も、
-  ツールチップのライト／ダーク配色を更新
-- 100～250%表示倍率、マルチモニター、曲変更・停止・終了時の
-  品質確認項目を追加
+- 現在の処理状態の「要調整」を「監視中」へ変更
+- 自動安全補正から安全に復帰した後は「正常」へ戻る
+- 自動制御の理由を次の4種類で表示
+  - True Peak超過
+  - リミッター過多
+  - クリッパー過多
+  - 複数要因
+- 「自動安全補正ゲイン」を、実施量が分かりやすい「自動減衰量」へ変更
+- 自動減衰量を正のdB値で表示
+- 診断コピー、項目ヘルプ、日本語／英語用語集を新表示へ対応
+- 診断タブ右列の行間隔を調整し、最下段が枠外へはみ出す問題を修正
+
+発動理由は、トラック変更または測定リセットまで保持されます。
 
 ## 互換性
 
-音声処理、設定形式v7、DSP GUID、メニューGUID、プリセット設定値、
-DLL名、v1.6.0の日本語／English表示、v1.5.4のリアルタイム自動制御は
-変更していません。
+音声処理、発動しきい値、自動減衰の最大6 dB、プリセット値、
+設定形式v7、DSP GUID、メニューGUID、DLL名は変更していません。
 
 ## 動作環境
 
@@ -25,13 +28,12 @@ DLL名、v1.6.0の日本語／English表示、v1.5.4のリアルタイム自動�
 
 ## English
 
-v1.6.1 keeps the settings window within the monitor work area and adds
-scrolling when 200-250% display scaling would otherwise hide controls. It also
-improves tooltip sizing at high DPI, updates tooltip colors when the foobar2000
-theme changes while the settings window remains open, and fixes the
-processing-strength range text that retained Japanese punctuation in the
-English interface.
+v1.7.0 makes real-time automatic safety control easier to understand.
+The current processing state now uses Normal, Monitoring, Auto-adjusting,
+and Adjustment limit, and returns to Normal after safe recovery. Diagnostics
+show whether the trigger was a True Peak exceedance, excessive limiting,
+excessive clipping, or multiple factors. Automatic attenuation is displayed
+as a positive dB amount.
 
-Preset format v7, existing DSP and menu GUIDs, preset values, audio processing,
-v1.6.0 language support, and the v1.5.4 real-time automatic safety-control
-behavior remain unchanged.
+Audio processing, trigger thresholds, the 6 dB limit, preset values,
+preset format v7, DSP and menu GUIDs, and the DLL name remain unchanged.

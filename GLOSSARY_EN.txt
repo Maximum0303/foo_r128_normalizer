@@ -1,9 +1,11 @@
-R128 Real-time Loudness Normalizer v1.6.1
+R128 Real-time Loudness Normalizer v1.7.0
 English Glossary
 
 Current processing state
-Normal, Needs adjustment, Auto-adjusting, or Adjustment limit. A persistent
-unsafe condition engages up to 6 dB of automatic safety attenuation.
+Normal, Monitoring, Auto-adjusting, or Adjustment limit. Monitoring is the
+0.75-second confirmation period. After safe recovery, the state returns to
+Normal. The last trigger reason and positive automatic attenuation amount are
+shown separately.
 
 EBU R128
 A loudness-measurement method designed to make perceived levels more
