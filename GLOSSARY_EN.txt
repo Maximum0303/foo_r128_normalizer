@@ -1,4 +1,4 @@
-R128 Real-time Loudness Normalizer v1.9.0
+R128 Real-time Loudness Normalizer v1.10.0
 English Glossary
 
 Current processing state
@@ -104,3 +104,9 @@ Estimated processing load of this DSP.
 
 Invalid-sample protection
 Replaces NaN, infinite, or extreme input samples with safe values.
+
+User presets
+Save all current Basic and Processing settings under a custom name.
+User presets can be loaded, overwritten, renamed, or deleted.
+The seven built-in presets remain unchanged, and user presets are stored
+separately in the foobar2000 configuration.

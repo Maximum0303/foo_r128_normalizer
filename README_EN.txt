@@ -1,10 +1,10 @@
-R128 Real-time Loudness Normalizer v1.9.0
+R128 Real-time Loudness Normalizer v1.10.0
 
 For foobar2000 2.x / Windows x64
 
 INSTALLATION
 
-1. Open foo_r128_normalizer_v1.9.0.fb2k-component.
+1. Open foo_r128_normalizer_v1.10.0.fb2k-component.
 2. Follow the foobar2000 installation prompt.
 3. Restart foobar2000.
 
@@ -60,11 +60,22 @@ Only the current track is kept in memory, and the graph resets when the track
 changes. Drawing runs only while the graph window is open. The real-time audio
 thread performs no graph recording or drawing work.
 
+USER PRESETS
+
+v1.10.0 can save all current Basic and Processing settings under a custom
+name. Select a saved preset and use Load, Overwrite, Rename, or Delete as
+needed. Save As creates a separate user preset from the current settings.
+
+Names can contain Japanese or English text and are limited to 1-64
+characters. Up to 100 user presets can be stored. The seven built-in presets
+remain read-only. User presets are stored only in the foobar2000
+configuration and are not transmitted externally.
+
 COMPATIBILITY
 
-v1.9.0 retains preset format v7, existing DSP and menu GUIDs, preset values,
-audio-processing thresholds, and the 6 dB automatic-attenuation limit. History
-storage is separate from DSP presets.
+v1.10.0 retains preset format v7, existing DSP and menu GUIDs, built-in preset
+values, audio-processing thresholds, and the 6 dB automatic-attenuation limit.
+User-preset and history storage are separate from DSP presets.
 
 LICENSE
 

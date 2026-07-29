@@ -2,13 +2,23 @@
 
 DECLARE_COMPONENT_VERSION(
     "R128 \xE3\x83\xAA\xE3\x82\xA2\xE3\x83\xAB\xE3\x82\xBF\xE3\x82\xA4\xE3\x83\xA0\xE9\x9F\xB3\xE9\x87\x8F\xE3\x83\x8E\xE3\x83\xBC\xE3\x83\x9E\xE3\x83\xA9\xE3\x82\xA4\xE3\x82\xB6\xE3\x83\xBC",
-    "1.9.0",
+    "1.10.0",
     "R128-based real-time loudness normalizer for foobar2000.\n"
     "foobar2000用のR128ベース・リアルタイム音量ノーマライザーです。\n"
     "\n"
     "Author: Maximum\n"
     "Copyright (c) 2026 Maximum\n"
     "License: MIT License\n"
+    "\n"
+    "v1.10.0 adds user presets stored separately from DSP preset format v7.\n"
+    "The current settings can be saved under a Unicode name, loaded,\n"
+    "overwritten, renamed, or deleted. The seven built-in presets remain\n"
+    "read-only, and existing DSP settings and component GUIDs are unchanged.\n"
+    "\n"
+    "v1.10.0では、現在の全設定に名前を付けて保存できる\n"
+    "ユーザープリセットを追加しました。呼出、上書き、名前変更、削除に対応し、\n"
+    "日本語・英語を含む名前を使用できます。既存7プリセットは変更不可のまま、\n"
+    "DSP設定形式v7、既存設定、コンポーネントGUIDも変更しません。\n"
     "\n"
     "v1.9.0 adds a lightweight trend graph for the currently playing track.\n"
     "It records Short-term loudness, total applied gain, automatic attenuation,\n"

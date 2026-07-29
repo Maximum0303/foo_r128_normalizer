@@ -13,6 +13,9 @@ static const GUID guid_cfg_display_language =
 static const GUID guid_cfg_auto_control_history =
 { 0x8f971df3, 0xe9c8, 0x4b37, { 0xb5, 0x38, 0x2f, 0x65, 0xe3, 0x8a, 0x54, 0x91 } };
 
+static const GUID guid_cfg_user_presets =
+{ 0x21e1b831, 0x64e1, 0x49ce, { 0xa7, 0xd0, 0x18, 0x63, 0x92, 0xfe, 0x4f, 0x35 } };
+
 enum class display_language : int {
     automatic = 0,
     japanese = 1,
@@ -26,6 +29,11 @@ cfg_int g_cfg_display_language(
 
 cfg_string g_cfg_auto_control_history(
     guid_cfg_auto_control_history,
+    ""
+);
+
+cfg_string g_cfg_user_presets(
+    guid_cfg_user_presets,
     ""
 );
 
@@ -95,6 +103,8 @@ constexpr UINT kTrendDialogRefreshMilliseconds = 500;
 constexpr t_size kMaximumTrendSamples = 21600;
 constexpr t_size kMaximumAutoControlHistoryEntries = 100;
 constexpr t_size kMaximumHistoryMetadataCharacters = 512;
+constexpr t_size kMaximumUserPresets = 100;
+constexpr t_size kMaximumUserPresetNameCharacters = 64;
 
 // foobar2000 audio_chunk channel flags. Interleaved sample order follows
 // the ascending order of these channel-map flags.
@@ -237,6 +247,14 @@ struct r128_settings {
     bool enable_adaptive_master = false;
     bool enable_three_band_master = false;
 };
+
+struct user_preset_entry {
+    std::wstring name;
+    r128_settings settings;
+};
+
+std::vector<user_preset_entry> g_user_presets;
+bool g_user_presets_loaded = false;
 
 display_language configured_display_language() {
     const int value = static_cast<int>(
@@ -483,17 +501,45 @@ const wchar_t* recognized_profile_name(
 void update_profile_indicator(
     HWND wnd,
     const r128_settings& value,
-    bool pending
+    bool pending,
+    const std::wstring* user_preset_name = nullptr,
+    bool modified = false
 ) {
-    wchar_t text[96] = {};
+    const wchar_t* name =
+        user_preset_name != nullptr &&
+        !user_preset_name->empty()
+            ? user_preset_name->c_str()
+            : recognized_profile_name(
+                  detect_recognized_profile(value)
+              );
+
+    wchar_t text[192] = {};
     swprintf_s(
         text,
         pending
-            ? ui_text(L"選択: %s", L"Selected: %s")
-            : ui_text(L"現在: %s", L"Current: %s"),
-        recognized_profile_name(
-            detect_recognized_profile(value)
-        )
+            ? (
+                modified
+                    ? ui_text(
+                        L"選択: %s（変更あり）",
+                        L"Selected: %s (modified)"
+                    )
+                    : ui_text(
+                        L"選択: %s",
+                        L"Selected: %s"
+                    )
+              )
+            : (
+                modified
+                    ? ui_text(
+                        L"現在: %s（変更あり）",
+                        L"Current: %s (modified)"
+                    )
+                    : ui_text(
+                        L"現在: %s",
+                        L"Current: %s"
+                    )
+              ),
+        name
     );
     SetDlgItemTextW(
         wnd,
@@ -942,6 +988,277 @@ std::vector<std::string> split_history_fields(
     }
 
     return fields;
+}
+
+std::wstring trim_user_preset_name(const std::wstring& value) {
+    t_size begin = 0;
+    while (begin < value.size() &&
+           std::iswspace(value[begin]) != 0) {
+        ++begin;
+    }
+
+    t_size end = value.size();
+    while (end > begin &&
+           std::iswspace(value[end - 1]) != 0) {
+        --end;
+    }
+
+    return value.substr(begin, end - begin);
+}
+
+bool user_preset_name_is_valid(const std::wstring& value) {
+    if (value.empty() ||
+        value.size() > kMaximumUserPresetNameCharacters) {
+        return false;
+    }
+
+    for (wchar_t character : value) {
+        if (std::iswcntrl(character) != 0) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+bool user_preset_names_equal(
+    const std::wstring& left,
+    const std::wstring& right
+) {
+    return CompareStringOrdinal(
+        left.c_str(),
+        static_cast<int>(left.size()),
+        right.c_str(),
+        static_cast<int>(right.size()),
+        TRUE
+    ) == CSTR_EQUAL;
+}
+
+bool user_preset_name_is_reserved(
+    const std::wstring& value
+) {
+    constexpr const wchar_t* kReservedNames[] = {
+        L"ナチュラル -18",
+        L"Natural -18",
+        L"パワーブースト -14",
+        L"Power Boost -14",
+        L"リラックス -23",
+        L"Relaxed -23",
+        L"ナイトセーフ -22",
+        L"Night Safe -22",
+        L"モダンブースト -9",
+        L"Modern Boost -9",
+        L"1バンド・アダプティブ -10",
+        L"1-Band Adaptive -10",
+        L"3バンド・アダプティブ -10",
+        L"3-Band Adaptive -10"
+    };
+
+    for (const wchar_t* reserved : kReservedNames) {
+        if (user_preset_names_equal(value, reserved)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool user_preset_settings_are_valid(
+    const r128_settings& value
+) {
+    return
+        std::isfinite(value.target_lufs) &&
+        value.target_lufs >= -36.0f &&
+        value.target_lufs <= -5.0f &&
+        std::isfinite(value.max_boost_db) &&
+        value.max_boost_db >= 0.0f &&
+        value.max_boost_db <= 24.0f &&
+        std::isfinite(value.max_attenuation_db) &&
+        value.max_attenuation_db >= 0.0f &&
+        value.max_attenuation_db <= 36.0f &&
+        std::isfinite(value.true_peak_limit_dbtp) &&
+        value.true_peak_limit_dbtp >= -12.0f &&
+        value.true_peak_limit_dbtp <= 0.0f &&
+        std::isfinite(value.lookahead_ms) &&
+        value.lookahead_ms >= 0.0f &&
+        value.lookahead_ms <= 20.0f &&
+        std::isfinite(value.limiter_release_ms) &&
+        value.limiter_release_ms >= 20.0f &&
+        value.limiter_release_ms <= 1000.0f &&
+        std::isfinite(value.startup_analysis_seconds) &&
+        value.startup_analysis_seconds >= 0.0f &&
+        value.startup_analysis_seconds <= 15.0f &&
+        std::isfinite(value.silence_guard_lufs) &&
+        value.silence_guard_lufs >= -70.0f &&
+        value.silence_guard_lufs <= -20.0f &&
+        std::isfinite(value.gain_lock_seconds) &&
+        value.gain_lock_seconds >= 0.0f &&
+        value.gain_lock_seconds <= 60.0f &&
+        std::isfinite(value.gain_lock_tolerance_lu) &&
+        value.gain_lock_tolerance_lu >= 0.1f &&
+        value.gain_lock_tolerance_lu <= 3.0f &&
+        std::isfinite(value.modern_strength_percent) &&
+        value.modern_strength_percent >= 0.0f &&
+        value.modern_strength_percent <= 100.0f;
+}
+
+void save_user_presets() {
+    std::ostringstream output;
+    output << "R128U1\n";
+    output << std::setprecision(
+        std::numeric_limits<float>::max_digits10
+    );
+
+    for (const auto& entry : g_user_presets) {
+        output
+            << hex_encode(wide_to_utf8(entry.name)) << '\t'
+            << entry.settings.target_lufs << '\t'
+            << entry.settings.max_boost_db << '\t'
+            << entry.settings.max_attenuation_db << '\t'
+            << entry.settings.true_peak_limit_dbtp << '\t'
+            << entry.settings.lookahead_ms << '\t'
+            << entry.settings.limiter_release_ms << '\t'
+            << entry.settings.startup_analysis_seconds << '\t'
+            << entry.settings.silence_guard_lufs << '\t'
+            << entry.settings.gain_lock_seconds << '\t'
+            << entry.settings.gain_lock_tolerance_lu << '\t'
+            << entry.settings.modern_strength_percent << '\t'
+            << (entry.settings.reset_each_track ? 1 : 0) << '\t'
+            << (entry.settings.enable_peak_guard ? 1 : 0) << '\t'
+            << (entry.settings.enable_silence_guard ? 1 : 0) << '\t'
+            << (entry.settings.enable_gain_lock ? 1 : 0) << '\t'
+            << (entry.settings.enable_modern_boost ? 1 : 0) << '\t'
+            << (entry.settings.enable_adaptive_master ? 1 : 0) << '\t'
+            << (entry.settings.enable_three_band_master ? 1 : 0)
+            << '\n';
+    }
+
+    g_cfg_user_presets = output.str().c_str();
+}
+
+void ensure_user_presets_loaded() {
+    if (g_user_presets_loaded) {
+        return;
+    }
+
+    g_user_presets_loaded = true;
+    g_user_presets.clear();
+
+    std::istringstream input(g_cfg_user_presets.get_ptr());
+    std::string line;
+
+    if (!std::getline(input, line) || line != "R128U1") {
+        return;
+    }
+
+    while (std::getline(input, line) &&
+           g_user_presets.size() < kMaximumUserPresets) {
+        const auto fields = split_history_fields(line);
+
+        if (fields.size() != 19) {
+            continue;
+        }
+
+        try {
+            std::string name_utf8;
+            if (!hex_decode(fields[0], name_utf8)) {
+                continue;
+            }
+
+            user_preset_entry entry;
+            entry.name = trim_user_preset_name(
+                utf8_to_wide(name_utf8.c_str())
+            );
+            entry.settings.target_lufs = std::stof(fields[1]);
+            entry.settings.max_boost_db = std::stof(fields[2]);
+            entry.settings.max_attenuation_db = std::stof(fields[3]);
+            entry.settings.true_peak_limit_dbtp = std::stof(fields[4]);
+            entry.settings.lookahead_ms = std::stof(fields[5]);
+            entry.settings.limiter_release_ms = std::stof(fields[6]);
+            entry.settings.startup_analysis_seconds =
+                std::stof(fields[7]);
+            entry.settings.silence_guard_lufs = std::stof(fields[8]);
+            entry.settings.gain_lock_seconds = std::stof(fields[9]);
+            entry.settings.gain_lock_tolerance_lu =
+                std::stof(fields[10]);
+            entry.settings.modern_strength_percent =
+                std::stof(fields[11]);
+            entry.settings.reset_each_track =
+                std::stoi(fields[12]) != 0;
+            entry.settings.enable_peak_guard =
+                std::stoi(fields[13]) != 0;
+            entry.settings.enable_silence_guard =
+                std::stoi(fields[14]) != 0;
+            entry.settings.enable_gain_lock =
+                std::stoi(fields[15]) != 0;
+            entry.settings.enable_modern_boost =
+                std::stoi(fields[16]) != 0;
+            entry.settings.enable_adaptive_master =
+                std::stoi(fields[17]) != 0;
+            entry.settings.enable_three_band_master =
+                std::stoi(fields[18]) != 0;
+
+            if (!user_preset_name_is_valid(entry.name) ||
+                user_preset_name_is_reserved(entry.name) ||
+                !user_preset_settings_are_valid(entry.settings)) {
+                continue;
+            }
+
+            bool duplicate = false;
+            for (const auto& existing : g_user_presets) {
+                if (user_preset_names_equal(
+                        existing.name,
+                        entry.name
+                    )) {
+                    duplicate = true;
+                    break;
+                }
+            }
+
+            if (!duplicate) {
+                g_user_presets.push_back(std::move(entry));
+            }
+        }
+        catch (...) {
+            continue;
+        }
+    }
+}
+
+int find_user_preset_by_name(const std::wstring& name) {
+    ensure_user_presets_loaded();
+
+    for (t_size index = 0;
+         index < g_user_presets.size();
+         ++index) {
+        if (user_preset_names_equal(
+                g_user_presets[index].name,
+                name
+            )) {
+            return static_cast<int>(index);
+        }
+    }
+
+    return -1;
+}
+
+int find_user_preset_by_settings(
+    const r128_settings& value
+) {
+    ensure_user_presets_loaded();
+
+    for (t_size index = 0;
+         index < g_user_presets.size();
+         ++index) {
+        if (settings_equal(
+                g_user_presets[index].settings,
+                value
+            )) {
+            return static_cast<int>(index);
+        }
+    }
+
+    return -1;
 }
 
 void limit_history_metadata_length(std::wstring& value);
@@ -1975,6 +2292,12 @@ constexpr localized_control_text kPrimaryUiText[] = {
     { IDC_PROFILE_MODERN, L"モダンブースト -9", L"Modern Boost -9" },
     { IDC_PROFILE_ADAPTIVE, L"1バンド・アダプティブ -10", L"1-Band Adaptive -10" },
     { IDC_PROFILE_THREE_BAND, L"3バンド・アダプティブ -10", L"3-Band Adaptive -10" },
+    { IDC_USER_PRESET_GROUP, L"ユーザープリセット", L"User Presets" },
+    { IDC_USER_PRESET_LOAD, L"呼出", L"Load" },
+    { IDC_USER_PRESET_SAVE_AS, L"名前を付けて保存", L"Save As" },
+    { IDC_USER_PRESET_OVERWRITE, L"上書き", L"Overwrite" },
+    { IDC_USER_PRESET_RENAME, L"名前変更", L"Rename" },
+    { IDC_USER_PRESET_DELETE, L"削除", L"Delete" },
     { IDC_COMPARE_GROUP, L"選択中のプリセット／比較", L"Selected preset / comparison" },
     { IDC_COMPARE_LOUDNESS_MATCH, L"音量一致", L"Loudness match" },
     { IDC_ORIGINAL_COMPARE, L"比較（押している間）", L"Compare (hold)" },
@@ -4396,7 +4719,7 @@ std::wstring build_diagnostic_report() {
     swprintf_s(
         report,
         ui_text(
-        L"R128 音量ノーマライザー 1.9.0\r\n"
+        L"R128 音量ノーマライザー 1.10.0\r\n"
         L"再生状態: %s\r\n"
         L"補正状態: %s\r\n"
         L"補正ゲイン固定: %s\r\n"
@@ -4453,7 +4776,7 @@ std::wstring build_diagnostic_report() {
         L"処理評価: %s\r\n"
         L"サンプルレート: %u Hz\r\n"
         L"推定CPU負荷: %.2f %%\r\n",
-        L"R128 Loudness Normalizer 1.9.0\r\n"
+        L"R128 Loudness Normalizer 1.10.0\r\n"
         L"Playback state: %s\r\n"
         L"Normalization state: %s\r\n"
         L"Gain lock: %s\r\n"
@@ -5274,6 +5597,14 @@ constexpr glossary_entry kGlossaryEntries[] = {
         L"再生中の音量をリアルタイムで調整します。"
     },
     {
+        L"ユーザープリセット",
+        L"現在の基本設定と追加処理設定を、任意の名前で保存する"
+        L"機能です。\r\n\r\n"
+        L"呼出、上書き、名前変更、削除に対応します。既存7プリセットは"
+        L"変更されず、ユーザープリセットはfoobar2000の設定内へ"
+        L"別に保存されます。"
+    },
+    {
         L"LUFS",
         L"Loudness Units relative to Full Scaleの略です。\r\n\r\n"
         L"人が感じる音の大きさを表す単位で、値が0に近いほど"
@@ -5476,6 +5807,13 @@ constexpr glossary_entry kGlossaryEntriesEnglish[] = {
         L"level of programs and music more consistent.\r\n\r\n"
         L"This component uses R128 principles to adjust playback loudness "
         L"in real time."
+    },
+    {
+        L"User preset",
+        L"Saves all current Basic and Processing settings under a custom "
+        L"name. User presets can be loaded, overwritten, renamed, or deleted. "
+        L"The seven built-in presets remain unchanged, and user presets are "
+        L"stored separately in the foobar2000 configuration."
     },
     {
         L"LUFS",
@@ -5702,6 +6040,40 @@ constexpr tooltip_entry kPresetTooltips[] = {
         L"低音の潰れと高域のざらつきを抑えます。",
         L"3-Band Adaptive -10: Controls low, mid, and high bands "
         L"independently to reduce bass pumping and harsh treble."
+    },
+    {
+        IDC_USER_PRESET_COMBO,
+        L"保存済みのユーザープリセットを選択します。",
+        L"Select a saved user preset."
+    },
+    {
+        IDC_USER_PRESET_LOAD,
+        L"選択したユーザープリセットを設定欄へ読み込みます。"
+        L"［適用］を押すまでは音声へ反映しません。",
+        L"Loads the selected user preset into the fields. "
+        L"Audio is unchanged until Apply is selected."
+    },
+    {
+        IDC_USER_PRESET_SAVE_AS,
+        L"現在の設定欄を新しい名前で保存します。",
+        L"Saves the current fields under a new name."
+    },
+    {
+        IDC_USER_PRESET_OVERWRITE,
+        L"選択したユーザープリセットを現在の設定欄で更新します。",
+        L"Updates the selected user preset from the current fields."
+    },
+    {
+        IDC_USER_PRESET_RENAME,
+        L"選択したユーザープリセットの名前だけを変更します。",
+        L"Changes only the name of the selected user preset."
+    },
+    {
+        IDC_USER_PRESET_DELETE,
+        L"選択したユーザープリセットを削除します。"
+        L"現在適用中の音声設定は変わりません。",
+        L"Deletes the selected user preset. "
+        L"Currently applied audio settings do not change."
     },
     {
         IDC_COMPARE_LOUDNESS_MATCH,
@@ -6568,7 +6940,7 @@ bool confirm_restore_defaults(HWND owner) {
 }
 
 constexpr wchar_t kLicenseCreditsText[] =
-    L"R128 リアルタイム音量ノーマライザー 1.9.0\r\n"
+    L"R128 リアルタイム音量ノーマライザー 1.10.0\r\n"
     L"\r\n"
     L"作者：Maximum\r\n"
     L"Copyright (c) 2026 Maximum\r\n"
@@ -6585,7 +6957,7 @@ constexpr wchar_t kLicenseCreditsText[] =
     L"THIRD-PARTY-NOTICES.txtをご覧ください。";
 
 constexpr wchar_t kLicenseCreditsTextEnglish[] =
-    L"R128 Real-time Loudness Normalizer 1.9.0\r\n"
+    L"R128 Real-time Loudness Normalizer 1.10.0\r\n"
     L"\r\n"
     L"Author: Maximum\r\n"
     L"Copyright (c) 2026 Maximum\r\n"
@@ -6906,6 +7278,184 @@ INT_PTR CALLBACK glossary_dialog_proc(
     return FALSE;
 }
 
+struct preset_name_dialog_context {
+    std::wstring title;
+    std::wstring prompt;
+    std::wstring initial_name;
+    std::wstring result;
+    fb2k::CCoreDarkModeHooks dark_mode;
+};
+
+INT_PTR CALLBACK preset_name_dialog_proc(
+    HWND wnd,
+    UINT message,
+    WPARAM wp,
+    LPARAM lp
+) {
+    auto* context =
+        reinterpret_cast<preset_name_dialog_context*>(
+            GetWindowLongPtrW(wnd, GWLP_USERDATA)
+        );
+
+    switch (message) {
+    case WM_INITDIALOG:
+        context =
+            reinterpret_cast<preset_name_dialog_context*>(lp);
+        SetWindowLongPtrW(
+            wnd,
+            GWLP_USERDATA,
+            reinterpret_cast<LONG_PTR>(context)
+        );
+
+        if (context != nullptr) {
+            context->dark_mode.AddDialogWithControls(wnd);
+            SetWindowTextW(wnd, context->title.c_str());
+            SetDlgItemTextW(
+                wnd,
+                IDC_PRESET_NAME_PROMPT,
+                context->prompt.c_str()
+            );
+            SetDlgItemTextW(
+                wnd,
+                IDC_PRESET_NAME_EDIT,
+                context->initial_name.c_str()
+            );
+        }
+
+        SetDlgItemTextW(
+            wnd,
+            IDOK,
+            ui_text(L"保存", L"Save")
+        );
+        SetDlgItemTextW(
+            wnd,
+            IDCANCEL,
+            ui_text(L"キャンセル", L"Cancel")
+        );
+        SendDlgItemMessageW(
+            wnd,
+            IDC_PRESET_NAME_EDIT,
+            EM_SETLIMITTEXT,
+            static_cast<WPARAM>(
+                kMaximumUserPresetNameCharacters
+            ),
+            0
+        );
+        SetFocus(GetDlgItem(wnd, IDC_PRESET_NAME_EDIT));
+        SendDlgItemMessageW(
+            wnd,
+            IDC_PRESET_NAME_EDIT,
+            EM_SETSEL,
+            0,
+            -1
+        );
+        return FALSE;
+
+    case WM_COMMAND:
+        if (LOWORD(wp) == IDOK) {
+            wchar_t name[
+                kMaximumUserPresetNameCharacters + 1
+            ] = {};
+            GetDlgItemTextW(
+                wnd,
+                IDC_PRESET_NAME_EDIT,
+                name,
+                static_cast<int>(std::size(name))
+            );
+
+            const std::wstring trimmed =
+                trim_user_preset_name(name);
+
+            if (!user_preset_name_is_valid(trimmed)) {
+                MessageBoxW(
+                    wnd,
+                    ui_text(
+                        L"1～64文字の名前を入力してください。"
+                        L"改行やタブは使用できません。",
+                        L"Enter a name from 1 to 64 characters. "
+                        L"Line breaks and tabs are not allowed."
+                    ),
+                    ui_text(
+                        L"プリセット名の確認",
+                        L"Check Preset Name"
+                    ),
+                    MB_OK | MB_ICONWARNING
+                );
+                SetFocus(
+                    GetDlgItem(wnd, IDC_PRESET_NAME_EDIT)
+                );
+                return TRUE;
+            }
+
+            if (user_preset_name_is_reserved(trimmed)) {
+                MessageBoxW(
+                    wnd,
+                    ui_text(
+                        L"組み込みプリセットと同じ名前は"
+                        L"使用できません。",
+                        L"Built-in preset names cannot be used."
+                    ),
+                    ui_text(
+                        L"プリセット名の確認",
+                        L"Check Preset Name"
+                    ),
+                    MB_OK | MB_ICONWARNING
+                );
+                SetFocus(
+                    GetDlgItem(wnd, IDC_PRESET_NAME_EDIT)
+                );
+                return TRUE;
+            }
+
+            if (context != nullptr) {
+                context->result = trimmed;
+            }
+            EndDialog(wnd, IDOK);
+            return TRUE;
+        }
+
+        if (LOWORD(wp) == IDCANCEL) {
+            EndDialog(wnd, IDCANCEL);
+            return TRUE;
+        }
+        break;
+
+    case WM_CLOSE:
+        EndDialog(wnd, IDCANCEL);
+        return TRUE;
+    }
+
+    return FALSE;
+}
+
+bool request_user_preset_name(
+    HWND parent,
+    const wchar_t* title,
+    const wchar_t* prompt,
+    const std::wstring& initial_name,
+    std::wstring& result
+) {
+    preset_name_dialog_context context;
+    context.title = title;
+    context.prompt = prompt;
+    context.initial_name = initial_name;
+
+    const INT_PTR dialog_result = DialogBoxParamW(
+        core_api::get_my_instance(),
+        MAKEINTRESOURCEW(IDD_R128_PRESET_NAME),
+        parent,
+        preset_name_dialog_proc,
+        reinterpret_cast<LPARAM>(&context)
+    );
+
+    if (dialog_result != IDOK) {
+        return false;
+    }
+
+    result = context.result;
+    return true;
+}
+
 struct dialog_context {
     r128_settings value;
     dsp_preset_edit_callback* callback = nullptr;
@@ -6916,6 +7466,9 @@ struct dialog_context {
     bool tooltip_theme_initialized = false;
     bool updating_controls = false;
     bool has_unapplied_changes = false;
+    std::wstring active_user_preset_name;
+    bool active_user_preset_applied = false;
+    bool active_user_preset_modified = false;
 
     // Direct main-menu launch only.
     // Modal DSP Manager dialogs leave these at their defaults.
@@ -6924,6 +7477,131 @@ struct dialog_context {
     void* cleanup_state = nullptr;
     void (*cleanup)(dialog_context*) = nullptr;
 };
+
+int selected_user_preset_index(HWND wnd) {
+    const LRESULT selection = SendDlgItemMessageW(
+        wnd,
+        IDC_USER_PRESET_COMBO,
+        CB_GETCURSEL,
+        0,
+        0
+    );
+
+    if (selection == CB_ERR) {
+        return -1;
+    }
+
+    const LRESULT item_data = SendDlgItemMessageW(
+        wnd,
+        IDC_USER_PRESET_COMBO,
+        CB_GETITEMDATA,
+        static_cast<WPARAM>(selection),
+        0
+    );
+
+    if (item_data == CB_ERR ||
+        item_data < 0 ||
+        static_cast<t_size>(item_data) >=
+            g_user_presets.size()) {
+        return -1;
+    }
+
+    return static_cast<int>(item_data);
+}
+
+void update_user_preset_button_state(HWND wnd) {
+    const BOOL has_selection =
+        selected_user_preset_index(wnd) >= 0
+            ? TRUE
+            : FALSE;
+
+    EnableWindow(
+        GetDlgItem(wnd, IDC_USER_PRESET_LOAD),
+        has_selection
+    );
+    EnableWindow(
+        GetDlgItem(wnd, IDC_USER_PRESET_OVERWRITE),
+        has_selection
+    );
+    EnableWindow(
+        GetDlgItem(wnd, IDC_USER_PRESET_RENAME),
+        has_selection
+    );
+    EnableWindow(
+        GetDlgItem(wnd, IDC_USER_PRESET_DELETE),
+        has_selection
+    );
+}
+
+void refresh_user_preset_combo(
+    HWND wnd,
+    const std::wstring& preferred_name
+) {
+    ensure_user_presets_loaded();
+
+    HWND combo = GetDlgItem(wnd, IDC_USER_PRESET_COMBO);
+    if (combo == nullptr) {
+        return;
+    }
+
+    std::wstring selection_name = preferred_name;
+    if (selection_name.empty()) {
+        const int selected_index =
+            selected_user_preset_index(wnd);
+        if (selected_index >= 0) {
+            selection_name =
+                g_user_presets[
+                    static_cast<t_size>(selected_index)
+                ].name;
+        }
+    }
+
+    SendMessageW(combo, CB_RESETCONTENT, 0, 0);
+
+    int selection = -1;
+    for (t_size index = 0;
+         index < g_user_presets.size();
+         ++index) {
+        const auto& entry = g_user_presets[index];
+        const LRESULT item = SendMessageW(
+            combo,
+            CB_ADDSTRING,
+            0,
+            reinterpret_cast<LPARAM>(
+                entry.name.c_str()
+            )
+        );
+
+        if (item >= 0) {
+            SendMessageW(
+                combo,
+                CB_SETITEMDATA,
+                static_cast<WPARAM>(item),
+                static_cast<LPARAM>(index)
+            );
+
+            if (!selection_name.empty() &&
+                user_preset_names_equal(
+                    entry.name,
+                    selection_name
+                )) {
+                selection = static_cast<int>(item);
+            }
+        }
+    }
+
+    if (selection < 0 && !g_user_presets.empty()) {
+        selection = 0;
+    }
+
+    SendMessageW(
+        combo,
+        CB_SETCURSEL,
+        static_cast<WPARAM>(selection),
+        0
+    );
+    update_user_preset_button_state(wnd);
+}
 
 void update_tooltip_theme(
     dialog_context* context,
@@ -7051,6 +7729,17 @@ void mark_unapplied_changes(
             L"There are unapplied changes"
         )
     );
+
+    if (!context->active_user_preset_name.empty()) {
+        context->active_user_preset_modified = true;
+        update_profile_indicator(
+            wnd,
+            context->value,
+            !context->active_user_preset_applied,
+            &context->active_user_preset_name,
+            context->active_user_preset_modified
+        );
+    }
 }
 
 void select_profile_in_dialog(
@@ -7063,6 +7752,9 @@ void select_profile_in_dialog(
     }
 
     context->value = profile;
+    context->active_user_preset_name.clear();
+    context->active_user_preset_applied = false;
+    context->active_user_preset_modified = false;
     context->updating_controls = true;
     settings_to_dialog(wnd, context->value);
     context->updating_controls = false;
@@ -7217,6 +7909,390 @@ bool read_settings_from_dialog(
     return true;
 }
 
+void load_selected_user_preset(
+    HWND wnd,
+    dialog_context* context
+) {
+    if (context == nullptr) {
+        return;
+    }
+
+    const int index = selected_user_preset_index(wnd);
+    if (index < 0) {
+        return;
+    }
+
+    const auto& entry =
+        g_user_presets[static_cast<t_size>(index)];
+
+    context->value = entry.settings;
+    context->active_user_preset_name = entry.name;
+    context->active_user_preset_applied = false;
+    context->active_user_preset_modified = false;
+    context->updating_controls = true;
+    settings_to_dialog(wnd, context->value);
+    context->updating_controls = false;
+
+    update_profile_indicator(
+        wnd,
+        context->value,
+        true,
+        &context->active_user_preset_name,
+        false
+    );
+    set_apply_button_state(wnd, context, true);
+    set_control_text(
+        wnd,
+        IDC_APPLY_STATUS,
+        ui_text(
+            L"ユーザープリセットを選択しました",
+            L"User preset selected"
+        )
+    );
+}
+
+bool save_user_preset_with_name(
+    HWND wnd,
+    dialog_context* context,
+    const std::wstring& name,
+    const r128_settings& settings,
+    bool confirm_duplicate
+) {
+    int index = find_user_preset_by_name(name);
+
+    if (index >= 0 && confirm_duplicate) {
+        wchar_t message[256] = {};
+        swprintf_s(
+            message,
+            ui_text(
+                L"「%s」はすでにあります。\n"
+                L"この名前へ上書きしますか？",
+                L"\"%s\" already exists.\n"
+                L"Overwrite it?"
+            ),
+            name.c_str()
+        );
+
+        if (MessageBoxW(
+                wnd,
+                message,
+                ui_text(
+                    L"ユーザープリセットの上書き",
+                    L"Overwrite User Preset"
+                ),
+                MB_YESNO | MB_ICONQUESTION |
+                    MB_DEFBUTTON2
+            ) != IDYES) {
+            return false;
+        }
+    }
+
+    if (index < 0) {
+        if (g_user_presets.size() >= kMaximumUserPresets) {
+            MessageBoxW(
+                wnd,
+                ui_text(
+                    L"ユーザープリセットは最大100件です。"
+                    L"不要なプリセットを削除してください。",
+                    L"Up to 100 user presets can be stored. "
+                    L"Delete an unused preset first."
+                ),
+                ui_text(
+                    L"ユーザープリセット",
+                    L"User Presets"
+                ),
+                MB_OK | MB_ICONWARNING
+            );
+            return false;
+        }
+
+        user_preset_entry entry;
+        entry.name = name;
+        entry.settings = settings;
+        g_user_presets.push_back(std::move(entry));
+    }
+    else {
+        g_user_presets[
+            static_cast<t_size>(index)
+        ].settings = settings;
+    }
+
+    save_user_presets();
+
+    if (context != nullptr) {
+        const bool was_unapplied =
+            context->has_unapplied_changes;
+        context->value = settings;
+        context->active_user_preset_name = name;
+        context->active_user_preset_applied =
+            !was_unapplied;
+        context->active_user_preset_modified = false;
+
+        update_profile_indicator(
+            wnd,
+            context->value,
+            was_unapplied,
+            &context->active_user_preset_name,
+            false
+        );
+    }
+
+    refresh_user_preset_combo(wnd, name);
+    set_control_text(
+        wnd,
+        IDC_APPLY_STATUS,
+        ui_text(
+            L"ユーザープリセットを保存しました",
+            L"User preset saved"
+        )
+    );
+    return true;
+}
+
+void save_user_preset_as(
+    HWND wnd,
+    dialog_context* context
+) {
+    if (context == nullptr) {
+        return;
+    }
+
+    r128_settings settings = context->value;
+    if (!read_settings_from_dialog(wnd, settings)) {
+        return;
+    }
+
+    std::wstring name;
+    if (!request_user_preset_name(
+            wnd,
+            ui_text(
+                L"ユーザープリセットの保存",
+                L"Save User Preset"
+            ),
+            ui_text(
+                L"新しいプリセット名を入力してください。",
+                L"Enter a name for the new preset."
+            ),
+            L"",
+            name
+        )) {
+        return;
+    }
+
+    save_user_preset_with_name(
+        wnd,
+        context,
+        name,
+        settings,
+        true
+    );
+}
+
+void overwrite_selected_user_preset(
+    HWND wnd,
+    dialog_context* context
+) {
+    if (context == nullptr) {
+        return;
+    }
+
+    const int index = selected_user_preset_index(wnd);
+    if (index < 0) {
+        return;
+    }
+
+    r128_settings settings = context->value;
+    if (!read_settings_from_dialog(wnd, settings)) {
+        return;
+    }
+
+    const std::wstring name =
+        g_user_presets[
+            static_cast<t_size>(index)
+        ].name;
+
+    wchar_t message[256] = {};
+    swprintf_s(
+        message,
+        ui_text(
+            L"現在の設定で「%s」を上書きしますか？",
+            L"Overwrite \"%s\" with the current settings?"
+        ),
+        name.c_str()
+    );
+
+    if (MessageBoxW(
+            wnd,
+            message,
+            ui_text(
+                L"ユーザープリセットの上書き",
+                L"Overwrite User Preset"
+            ),
+            MB_YESNO | MB_ICONQUESTION |
+                MB_DEFBUTTON2
+        ) != IDYES) {
+        return;
+    }
+
+    save_user_preset_with_name(
+        wnd,
+        context,
+        name,
+        settings,
+        false
+    );
+}
+
+void rename_selected_user_preset(
+    HWND wnd,
+    dialog_context* context
+) {
+    const int index = selected_user_preset_index(wnd);
+    if (index < 0) {
+        return;
+    }
+
+    const std::wstring old_name =
+        g_user_presets[
+            static_cast<t_size>(index)
+        ].name;
+    std::wstring new_name;
+
+    if (!request_user_preset_name(
+            wnd,
+            ui_text(
+                L"ユーザープリセットの名前変更",
+                L"Rename User Preset"
+            ),
+            ui_text(
+                L"新しいプリセット名を入力してください。",
+                L"Enter the new preset name."
+            ),
+            old_name,
+            new_name
+        )) {
+        return;
+    }
+
+    const int duplicate =
+        find_user_preset_by_name(new_name);
+    if (duplicate >= 0 && duplicate != index) {
+        MessageBoxW(
+            wnd,
+            ui_text(
+                L"同じ名前のユーザープリセットが"
+                L"すでにあります。",
+                L"A user preset with that name already exists."
+            ),
+            ui_text(
+                L"プリセット名の確認",
+                L"Check Preset Name"
+            ),
+            MB_OK | MB_ICONWARNING
+        );
+        return;
+    }
+
+    g_user_presets[
+        static_cast<t_size>(index)
+    ].name = new_name;
+    save_user_presets();
+
+    if (context != nullptr &&
+        user_preset_names_equal(
+            context->active_user_preset_name,
+            old_name
+        )) {
+        context->active_user_preset_name = new_name;
+        update_profile_indicator(
+            wnd,
+            context->value,
+            !context->active_user_preset_applied,
+            &context->active_user_preset_name,
+            context->active_user_preset_modified
+        );
+    }
+
+    refresh_user_preset_combo(wnd, new_name);
+    set_control_text(
+        wnd,
+        IDC_APPLY_STATUS,
+        ui_text(
+            L"ユーザープリセット名を変更しました",
+            L"User preset renamed"
+        )
+    );
+}
+
+void delete_selected_user_preset(
+    HWND wnd,
+    dialog_context* context
+) {
+    const int index = selected_user_preset_index(wnd);
+    if (index < 0) {
+        return;
+    }
+
+    const std::wstring name =
+        g_user_presets[
+            static_cast<t_size>(index)
+        ].name;
+    wchar_t message[256] = {};
+    swprintf_s(
+        message,
+        ui_text(
+            L"ユーザープリセット「%s」を削除しますか？\n"
+            L"現在適用中の音声設定は変わりません。",
+            L"Delete the user preset \"%s\"?\n"
+            L"The currently applied audio settings will not change."
+        ),
+        name.c_str()
+    );
+
+    if (MessageBoxW(
+            wnd,
+            message,
+            ui_text(
+                L"ユーザープリセットの削除",
+                L"Delete User Preset"
+            ),
+            MB_YESNO | MB_ICONWARNING |
+                MB_DEFBUTTON2
+        ) != IDYES) {
+        return;
+    }
+
+    g_user_presets.erase(
+        g_user_presets.begin() + index
+    );
+    save_user_presets();
+
+    if (context != nullptr &&
+        user_preset_names_equal(
+            context->active_user_preset_name,
+            name
+        )) {
+        context->active_user_preset_name.clear();
+        context->active_user_preset_applied = false;
+        context->active_user_preset_modified = false;
+        update_profile_indicator(
+            wnd,
+            context->value,
+            context->has_unapplied_changes
+        );
+    }
+
+    refresh_user_preset_combo(wnd, L"");
+    set_control_text(
+        wnd,
+        IDC_APPLY_STATUS,
+        ui_text(
+            L"ユーザープリセットを削除しました",
+            L"User preset deleted"
+        )
+    );
+}
+
 bool apply_dialog_settings(
     HWND wnd,
     dialog_context* context
@@ -7232,6 +8308,28 @@ bool apply_dialog_settings(
     }
 
     context->value = new_value;
+    context->active_user_preset_applied = true;
+
+    if (!context->active_user_preset_name.empty()) {
+        const int index = find_user_preset_by_name(
+            context->active_user_preset_name
+        );
+
+        if (index >= 0) {
+            context->active_user_preset_modified =
+                !settings_equal(
+                    g_user_presets[
+                        static_cast<t_size>(index)
+                    ].settings,
+                    context->value
+                );
+        }
+        else {
+            context->active_user_preset_name.clear();
+            context->active_user_preset_applied = false;
+            context->active_user_preset_modified = false;
+        }
+    }
 
     if (context->callback != nullptr) {
         dsp_preset_impl new_preset;
@@ -7242,7 +8340,11 @@ bool apply_dialog_settings(
     update_profile_indicator(
         wnd,
         context->value,
-        false
+        false,
+        context->active_user_preset_name.empty()
+            ? nullptr
+            : &context->active_user_preset_name,
+        context->active_user_preset_modified
     );
     set_apply_button_state(wnd, context, false);
     set_control_text(
@@ -7299,6 +8401,26 @@ INT_PTR CALLBACK config_dialog_proc(HWND wnd, UINT message, WPARAM wp, LPARAM lp
             BST_CHECKED
         );
         if (context != nullptr) {
+            ensure_user_presets_loaded();
+            if (detect_recognized_profile(context->value) ==
+                    recognized_profile::custom) {
+                const int user_preset_index =
+                    find_user_preset_by_settings(
+                        context->value
+                    );
+
+                if (user_preset_index >= 0) {
+                    context->active_user_preset_name =
+                        g_user_presets[
+                            static_cast<t_size>(
+                                user_preset_index
+                            )
+                        ].name;
+                    context->active_user_preset_applied = true;
+                    context->active_user_preset_modified = false;
+                }
+            }
+
             context->updating_controls = true;
             settings_to_dialog(wnd, context->value);
             context->updating_controls = false;
@@ -7308,9 +8430,24 @@ INT_PTR CALLBACK config_dialog_proc(HWND wnd, UINT message, WPARAM wp, LPARAM lp
                 &context->value,
                 false
             );
+
+            refresh_user_preset_combo(
+                wnd,
+                context->active_user_preset_name
+            );
+            if (!context->active_user_preset_name.empty()) {
+                update_profile_indicator(
+                    wnd,
+                    context->value,
+                    false,
+                    &context->active_user_preset_name,
+                    false
+                );
+            }
         }
         else {
             apply_primary_ui_language(wnd, nullptr, false);
+            refresh_user_preset_combo(wnd, L"");
         }
         set_apply_button_state(wnd, context, false);
         set_control_text(
@@ -7499,6 +8636,12 @@ INT_PTR CALLBACK config_dialog_proc(HWND wnd, UINT message, WPARAM wp, LPARAM lp
         return FALSE;
 
     case WM_COMMAND:
+        if (LOWORD(wp) == IDC_USER_PRESET_COMBO &&
+            HIWORD(wp) == CBN_SELCHANGE) {
+            update_user_preset_button_state(wnd);
+            return TRUE;
+        }
+
         if (LOWORD(wp) == IDC_DISPLAY_LANGUAGE &&
             HIWORD(wp) == CBN_SELCHANGE) {
             const LRESULT selection = SendDlgItemMessageW(
@@ -7518,6 +8661,22 @@ INT_PTR CALLBACK config_dialog_proc(HWND wnd, UINT message, WPARAM wp, LPARAM lp
                     context != nullptr ? &context->value : nullptr,
                     false
                 );
+                refresh_user_preset_combo(
+                    wnd,
+                    context != nullptr
+                        ? context->active_user_preset_name
+                        : L""
+                );
+                if (context != nullptr &&
+                    !context->active_user_preset_name.empty()) {
+                    update_profile_indicator(
+                        wnd,
+                        context->value,
+                        !context->active_user_preset_applied,
+                        &context->active_user_preset_name,
+                        context->active_user_preset_modified
+                    );
+                }
                 recreate_help_tooltips(wnd, context);
                 refresh_diagnostic_controls(wnd);
                 set_control_text(
@@ -7611,6 +8770,26 @@ INT_PTR CALLBACK config_dialog_proc(HWND wnd, UINT message, WPARAM wp, LPARAM lp
         }
 
         switch (LOWORD(wp)) {
+        case IDC_USER_PRESET_LOAD:
+            load_selected_user_preset(wnd, context);
+            return TRUE;
+
+        case IDC_USER_PRESET_SAVE_AS:
+            save_user_preset_as(wnd, context);
+            return TRUE;
+
+        case IDC_USER_PRESET_OVERWRITE:
+            overwrite_selected_user_preset(wnd, context);
+            return TRUE;
+
+        case IDC_USER_PRESET_RENAME:
+            rename_selected_user_preset(wnd, context);
+            return TRUE;
+
+        case IDC_USER_PRESET_DELETE:
+            delete_selected_user_preset(wnd, context);
+            return TRUE;
+
         case IDC_DEFAULTS:
             if (confirm_restore_defaults(wnd)) {
                 select_profile_in_dialog(

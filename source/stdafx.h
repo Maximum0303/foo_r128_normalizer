@@ -20,7 +20,9 @@
 #include <cmath>
 #include <cstdint>
 #include <cwchar>
+#include <cwctype>
 #include <deque>
+#include <iomanip>
 #include <iterator>
 #include <limits>
 #include <mutex>

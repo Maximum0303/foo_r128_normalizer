@@ -6,6 +6,7 @@
 #define IDD_R128_CONFIRM_DEFAULTS  104
 #define IDD_R128_AUTO_HISTORY      105
 #define IDD_R128_TREND_GRAPH       106
+#define IDD_R128_PRESET_NAME       107
 
 #define IDC_TARGET_LUFS            1001
 #define IDC_MAX_BOOST              1002
@@ -167,3 +168,12 @@
 #define IDC_TREND_GRAPH                    1195
 #define IDC_TREND_TRACK                    1196
 #define IDC_TREND_LEGEND                   1197
+#define IDC_USER_PRESET_GROUP              1200
+#define IDC_USER_PRESET_COMBO              1201
+#define IDC_USER_PRESET_LOAD               1202
+#define IDC_USER_PRESET_SAVE_AS            1203
+#define IDC_USER_PRESET_OVERWRITE          1204
+#define IDC_USER_PRESET_RENAME             1205
+#define IDC_USER_PRESET_DELETE             1206
+#define IDC_PRESET_NAME_PROMPT              1207
+#define IDC_PRESET_NAME_EDIT                1208
