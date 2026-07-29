@@ -5,6 +5,7 @@
 #define IDD_R128_TEXT_INFO         103
 #define IDD_R128_CONFIRM_DEFAULTS  104
 #define IDD_R128_AUTO_HISTORY      105
+#define IDD_R128_TREND_GRAPH       106
 
 #define IDC_TARGET_LUFS            1001
 #define IDC_MAX_BOOST              1002
@@ -85,6 +86,7 @@
 #define IDC_TEXT_INFO_BODY                 1067
 #define IDC_DIAG_AUTO_REASON               1068
 #define IDC_SHOW_AUTO_HISTORY              1069
+#define IDC_SHOW_TREND_GRAPH                1070
 
 #define IDC_BASIC_HEADER                   1100
 #define IDC_LABEL_TARGET_LUFS              1101
@@ -162,3 +164,6 @@
 #define IDC_HISTORY_DELETE_SELECTED        1192
 #define IDC_HISTORY_DELETE_ALL             1193
 #define IDC_HISTORY_SUMMARY                1194
+#define IDC_TREND_GRAPH                    1195
+#define IDC_TREND_TRACK                    1196
+#define IDC_TREND_LEGEND                   1197

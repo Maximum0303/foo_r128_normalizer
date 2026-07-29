@@ -1,10 +1,10 @@
-R128 Real-time Loudness Normalizer v1.8.0
+R128 Real-time Loudness Normalizer v1.9.0
 
 For foobar2000 2.x / Windows x64
 
 INSTALLATION
 
-1. Open foo_r128_normalizer_v1.8.0.fb2k-component.
+1. Open foo_r128_normalizer_v1.9.0.fb2k-component.
 2. Follow the foobar2000 installation prompt.
 3. Restart foobar2000.
 
@@ -49,9 +49,20 @@ recovery. The list persists across restarts and can be copied, selectively
 deleted, or cleared. A brief Monitoring state that never reaches
 Auto-adjusting is not added.
 
+AUTOMATIC-CONTROL TREND GRAPH
+
+Open Trend Graph from the Diagnostics page. For the currently playing track,
+it records Short-term loudness, total applied gain, automatic attenuation,
+and processed True Peak about once per second. Red vertical lines mark
+automatic-control activation.
+
+Only the current track is kept in memory, and the graph resets when the track
+changes. Drawing runs only while the graph window is open. The real-time audio
+thread performs no graph recording or drawing work.
+
 COMPATIBILITY
 
-v1.8.0 retains preset format v7, existing DSP and menu GUIDs, preset values,
+v1.9.0 retains preset format v7, existing DSP and menu GUIDs, preset values,
 audio-processing thresholds, and the 6 dB automatic-attenuation limit. History
 storage is separate from DSP presets.
 

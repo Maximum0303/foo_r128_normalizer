@@ -90,6 +90,9 @@ constexpr t_size kMaximumStoredBlocks = 108000;
 
 constexpr UINT_PTR kDiagnosticsTimerId = 1;
 constexpr UINT kDiagnosticsRefreshMilliseconds = 250;
+constexpr UINT_PTR kTrendDialogTimerId = 3;
+constexpr UINT kTrendDialogRefreshMilliseconds = 500;
+constexpr t_size kMaximumTrendSamples = 21600;
 constexpr t_size kMaximumAutoControlHistoryEntries = 100;
 constexpr t_size kMaximumHistoryMetadataCharacters = 512;
 
@@ -687,12 +690,109 @@ struct auto_control_history_entry {
     bool recovered = false;
 };
 
+struct auto_control_trend_sample {
+    double playback_seconds = 0.0;
+    double short_term_lufs = -200.0;
+    double applied_gain_db = 0.0;
+    double automatic_attenuation_db = 0.0;
+    double true_peak_dbtp = -200.0;
+    int processing_state = 0;
+};
+
+struct auto_control_trend_snapshot {
+    std::wstring artist;
+    std::wstring title;
+    std::vector<auto_control_trend_sample> samples;
+    unsigned long long revision = 0;
+};
+
 std::vector<auto_control_history_entry> g_auto_control_history_entries;
 bool g_auto_control_history_loaded = false;
 unsigned long long g_auto_control_history_next_session_id = 1;
 unsigned long long g_auto_control_history_active_session_id = 0;
 unsigned long long g_auto_control_history_suppressed_session_id = 0;
 unsigned long long g_auto_control_history_revision = 0;
+
+std::mutex g_auto_control_trend_mutex;
+std::wstring g_auto_control_trend_artist;
+std::wstring g_auto_control_trend_title;
+std::vector<auto_control_trend_sample> g_auto_control_trend_samples;
+unsigned long long g_auto_control_trend_revision = 0;
+
+void reset_auto_control_trend(
+    const std::wstring& artist,
+    const std::wstring& title
+) {
+    std::lock_guard<std::mutex> lock(g_auto_control_trend_mutex);
+    g_auto_control_trend_artist = artist;
+    g_auto_control_trend_title = title;
+    g_auto_control_trend_samples.clear();
+    ++g_auto_control_trend_revision;
+}
+
+void capture_auto_control_trend_sample(double playback_seconds) {
+    if (!std::isfinite(playback_seconds) || playback_seconds < 0.0) {
+        return;
+    }
+
+    auto_control_trend_sample sample;
+    sample.playback_seconds = playback_seconds;
+    sample.short_term_lufs =
+        g_diagnostic_short_term_lufs.load(std::memory_order_relaxed);
+    sample.applied_gain_db =
+        g_diagnostic_applied_gain_db.load(std::memory_order_relaxed);
+    sample.automatic_attenuation_db = std::max(
+        0.0,
+        -g_diagnostic_safety_reduction_db.load(
+            std::memory_order_relaxed
+        )
+    );
+    sample.true_peak_dbtp =
+        g_diagnostic_true_peak_dbtp.load(std::memory_order_relaxed);
+    sample.processing_state =
+        g_diagnostic_current_processing_state.load(
+            std::memory_order_relaxed
+        );
+
+    std::lock_guard<std::mutex> lock(g_auto_control_trend_mutex);
+
+    if (!g_auto_control_trend_samples.empty()) {
+        const double previous_seconds =
+            g_auto_control_trend_samples.back().playback_seconds;
+
+        if (playback_seconds + 0.5 < previous_seconds) {
+            g_auto_control_trend_samples.clear();
+        }
+        else if (playback_seconds - previous_seconds < 0.45) {
+            return;
+        }
+    }
+
+    if (g_auto_control_trend_samples.size() >= kMaximumTrendSamples) {
+        const t_size erase_count = std::min<t_size>(
+            3600,
+            g_auto_control_trend_samples.size()
+        );
+        g_auto_control_trend_samples.erase(
+            g_auto_control_trend_samples.begin(),
+            g_auto_control_trend_samples.begin() + erase_count
+        );
+    }
+
+    g_auto_control_trend_samples.push_back(sample);
+    ++g_auto_control_trend_revision;
+}
+
+auto_control_trend_snapshot current_auto_control_trend_snapshot() {
+    std::lock_guard<std::mutex> lock(g_auto_control_trend_mutex);
+
+    auto_control_trend_snapshot snapshot;
+    snapshot.artist = g_auto_control_trend_artist;
+    snapshot.title = g_auto_control_trend_title;
+    snapshot.samples = g_auto_control_trend_samples;
+    snapshot.revision = g_auto_control_trend_revision;
+    return snapshot;
+}
 
 std::wstring utf8_to_wide(const char* text) {
     if (text == nullptr || *text == '\0') {
@@ -1247,6 +1347,7 @@ public:
             flag_on_playback_new_track |
             flag_on_playback_stop |
             flag_on_playback_time |
+            flag_on_playback_seek |
             flag_on_playback_edited |
             flag_on_playback_dynamic_info_track;
     }
@@ -1264,7 +1365,8 @@ public:
         finish_current_track();
     }
 
-    void on_playback_time(double) override {
+    void on_playback_time(double playback_seconds) override {
+        capture_auto_control_trend_sample(playback_seconds);
         capture_current_track(
             current_auto_control_history_metrics()
         );
@@ -1317,6 +1419,7 @@ public:
     }
 
     void on_playback_seek(double) override {
+        reset_auto_control_trend(m_artist, m_title);
     }
 
     void on_playback_starting(
@@ -1344,6 +1447,7 @@ private:
     ) {
         m_artist = artist;
         m_title = title;
+        reset_auto_control_trend(m_artist, m_title);
         m_timestamp = current_filetime_value();
         m_session_id =
             g_auto_control_history_next_session_id++;
@@ -1706,7 +1810,8 @@ constexpr int kDiagnosticPageControls[] = {
     IDC_LABEL_DIAG_MAX_CLIPPER,
     IDC_DIAG_MAX_CLIPPER_REDUCTION,
     IDC_LABEL_DIAG_MAX_LIMITER,
-    IDC_DIAG_MAX_LIMITER_REDUCTION
+    IDC_DIAG_MAX_LIMITER_REDUCTION,
+    IDC_SHOW_TREND_GRAPH
 };
 
 template <t_size Count>
@@ -1878,6 +1983,7 @@ constexpr localized_control_text kPrimaryUiText[] = {
     { IDC_RESET_MEASUREMENT, L"測定リセット", L"Reset measurement" },
     { IDC_COPY_DIAGNOSTICS, L"診断コピー", L"Copy diagnostics" },
     { IDC_SHOW_AUTO_HISTORY, L"自動制御履歴", L"Automatic-Control History" },
+    { IDC_SHOW_TREND_GRAPH, L"推移グラフ", L"Trend Graph" },
     { IDC_SHOW_DIAGNOSTIC_HELP, L"用語集", L"Glossary" },
     { IDC_DEFAULTS, L"初期設定", L"Defaults" },
     { IDC_APPLY_SETTINGS, L"適用", L"Apply" },
@@ -3125,6 +3231,630 @@ void delete_all_auto_control_history_entries(
     refresh_auto_control_history_list(wnd, context, true);
 }
 
+struct auto_control_trend_dialog_context {
+    fb2k::CCoreDarkModeHooks dark_mode;
+    auto_control_trend_snapshot snapshot;
+    RECT initial_client = {};
+    RECT track_rect = {};
+    RECT legend_rect = {};
+    RECT graph_rect = {};
+    RECT close_button_rect = {};
+    int minimum_window_width = 0;
+    int minimum_window_height = 0;
+    bool layout_ready = false;
+};
+
+RECT dialog_child_rect(HWND wnd, int control_id) {
+    RECT rect = {};
+    HWND control = GetDlgItem(wnd, control_id);
+
+    if (control == nullptr || !GetWindowRect(control, &rect)) {
+        return rect;
+    }
+
+    MapWindowPoints(
+        HWND_DESKTOP,
+        wnd,
+        reinterpret_cast<POINT*>(&rect),
+        2
+    );
+    return rect;
+}
+
+void initialize_auto_control_trend_layout(
+    HWND wnd,
+    auto_control_trend_dialog_context* context
+) {
+    if (context == nullptr) {
+        return;
+    }
+
+    GetClientRect(wnd, &context->initial_client);
+    context->track_rect = dialog_child_rect(wnd, IDC_TREND_TRACK);
+    context->legend_rect = dialog_child_rect(wnd, IDC_TREND_LEGEND);
+    context->graph_rect = dialog_child_rect(wnd, IDC_TREND_GRAPH);
+    context->close_button_rect = dialog_child_rect(wnd, IDOK);
+
+    RECT window_rect = {};
+    GetWindowRect(wnd, &window_rect);
+    context->minimum_window_width = std::max<int>(
+        1,
+        static_cast<int>(window_rect.right - window_rect.left) * 2 / 3
+    );
+    context->minimum_window_height = std::max<int>(
+        1,
+        static_cast<int>(window_rect.bottom - window_rect.top) * 2 / 3
+    );
+    context->layout_ready = true;
+}
+
+void resize_auto_control_trend_dialog(
+    HWND wnd,
+    auto_control_trend_dialog_context* context,
+    int client_width,
+    int client_height
+) {
+    if (context == nullptr ||
+        !context->layout_ready ||
+        client_width <= 0 ||
+        client_height <= 0) {
+        return;
+    }
+
+    const int initial_width =
+        context->initial_client.right - context->initial_client.left;
+    const int initial_height =
+        context->initial_client.bottom - context->initial_client.top;
+
+    const auto move_control = [wnd](
+        int control_id,
+        int x,
+        int y,
+        int width,
+        int height
+    ) {
+        SetWindowPos(
+            GetDlgItem(wnd, control_id),
+            nullptr,
+            x,
+            y,
+            std::max(1, width),
+            std::max(1, height),
+            SWP_NOACTIVATE | SWP_NOZORDER
+        );
+    };
+
+    const int track_right_margin =
+        initial_width - context->track_rect.right;
+    move_control(
+        IDC_TREND_TRACK,
+        context->track_rect.left,
+        context->track_rect.top,
+        client_width - context->track_rect.left - track_right_margin,
+        context->track_rect.bottom - context->track_rect.top
+    );
+
+    const int legend_right_margin =
+        initial_width - context->legend_rect.right;
+    move_control(
+        IDC_TREND_LEGEND,
+        context->legend_rect.left,
+        context->legend_rect.top,
+        client_width - context->legend_rect.left - legend_right_margin,
+        context->legend_rect.bottom - context->legend_rect.top
+    );
+
+    const int graph_right_margin =
+        initial_width - context->graph_rect.right;
+    const int graph_bottom_margin =
+        initial_height - context->graph_rect.bottom;
+    move_control(
+        IDC_TREND_GRAPH,
+        context->graph_rect.left,
+        context->graph_rect.top,
+        client_width - context->graph_rect.left - graph_right_margin,
+        client_height - context->graph_rect.top - graph_bottom_margin
+    );
+
+    const int close_right_margin =
+        initial_width - context->close_button_rect.right;
+    const int close_bottom_margin =
+        initial_height - context->close_button_rect.bottom;
+    const int close_width =
+        context->close_button_rect.right -
+        context->close_button_rect.left;
+    const int close_height =
+        context->close_button_rect.bottom -
+        context->close_button_rect.top;
+    move_control(
+        IDOK,
+        client_width - close_right_margin - close_width,
+        client_height - close_bottom_margin - close_height,
+        close_width,
+        close_height
+    );
+
+    InvalidateRect(GetDlgItem(wnd, IDC_TREND_GRAPH), nullptr, FALSE);
+}
+
+std::wstring auto_control_trend_track_text(
+    const auto_control_trend_snapshot& snapshot
+) {
+    if (!snapshot.artist.empty() && !snapshot.title.empty()) {
+        return snapshot.artist + L" - " + snapshot.title;
+    }
+    if (!snapshot.title.empty()) {
+        return snapshot.title;
+    }
+    if (!snapshot.artist.empty()) {
+        return snapshot.artist;
+    }
+
+    return ui_text(
+        L"再生中の曲を待っています",
+        L"Waiting for a playing track"
+    );
+}
+
+void refresh_auto_control_trend_dialog(
+    HWND wnd,
+    auto_control_trend_dialog_context* context,
+    bool force
+) {
+    if (context == nullptr) {
+        return;
+    }
+
+    auto_control_trend_snapshot snapshot =
+        current_auto_control_trend_snapshot();
+
+    if (!force &&
+        snapshot.revision == context->snapshot.revision) {
+        return;
+    }
+
+    context->snapshot = std::move(snapshot);
+    SetDlgItemTextW(
+        wnd,
+        IDC_TREND_TRACK,
+        auto_control_trend_track_text(context->snapshot).c_str()
+    );
+    InvalidateRect(
+        GetDlgItem(wnd, IDC_TREND_GRAPH),
+        nullptr,
+        FALSE
+    );
+}
+
+double trend_lane_value(
+    const auto_control_trend_sample& sample,
+    int lane
+) {
+    switch (lane) {
+    case 0:
+        return sample.short_term_lufs;
+    case 1:
+        return sample.applied_gain_db;
+    case 2:
+        return sample.automatic_attenuation_db;
+    default:
+        return sample.true_peak_dbtp;
+    }
+}
+
+void draw_auto_control_trend_graph(
+    const DRAWITEMSTRUCT& item,
+    const auto_control_trend_snapshot& snapshot,
+    bool dark_mode
+) {
+    const HDC dc = item.hDC;
+    const RECT bounds = item.rcItem;
+    const COLORREF background =
+        dark_mode ? RGB(32, 32, 32) : RGB(255, 255, 255);
+    const COLORREF text_color =
+        dark_mode ? RGB(235, 235, 235) : RGB(32, 32, 32);
+    const COLORREF grid_color =
+        dark_mode ? RGB(74, 74, 74) : RGB(218, 218, 218);
+    const COLORREF event_color = RGB(220, 65, 65);
+
+    HBRUSH background_brush = CreateSolidBrush(background);
+    FillRect(dc, &bounds, background_brush);
+    DeleteObject(background_brush);
+
+    SetBkMode(dc, TRANSPARENT);
+    SetTextColor(dc, text_color);
+
+    if (snapshot.samples.empty()) {
+        RECT message_bounds = bounds;
+        DrawTextW(
+            dc,
+            ui_text(
+                L"再生を開始すると、約1秒ごとに推移を記録します。",
+                L"Start playback to record the trend about once per second."
+            ),
+            -1,
+            &message_bounds,
+            DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX
+        );
+        return;
+    }
+
+    const int left_margin = 118;
+    const int right_margin = 46;
+    const int top_margin = 8;
+    const int bottom_margin = 24;
+    const int plot_left = bounds.left + left_margin;
+    const int plot_right = std::max(
+        plot_left + 1,
+        static_cast<int>(bounds.right) - right_margin
+    );
+    const int plot_top = bounds.top + top_margin;
+    const int plot_bottom = std::max(
+        plot_top + 4,
+        static_cast<int>(bounds.bottom) - bottom_margin
+    );
+    const int plot_width = std::max(1, plot_right - plot_left);
+    const int plot_height = std::max(4, plot_bottom - plot_top);
+
+    const wchar_t* lane_names[] = {
+        ui_text(L"Short-term", L"Short-term"),
+        ui_text(L"総ゲイン", L"Total gain"),
+        ui_text(L"自動減衰", L"Auto attenuation"),
+        ui_text(L"True Peak", L"True Peak")
+    };
+    const wchar_t* lane_units[] = {
+        L"LUFS",
+        L"dB",
+        L"dB",
+        L"dBTP"
+    };
+    const double lane_minimums[] = {
+        -60.0,
+        -24.0,
+        0.0,
+        -12.0
+    };
+    const double lane_maximums[] = {
+        0.0,
+        24.0,
+        kAutoSafetyMaximumReductionDb,
+        0.0
+    };
+    const COLORREF lane_colors[] = {
+        RGB(48, 140, 230),
+        RGB(45, 175, 105),
+        RGB(235, 145, 35),
+        RGB(155, 100, 220)
+    };
+
+    HPEN grid_pen = CreatePen(PS_SOLID, 1, grid_color);
+    const HGDIOBJ previous_pen = SelectObject(dc, grid_pen);
+
+    for (int index = 0; index <= 4; ++index) {
+        const int x =
+            plot_left + plot_width * index / 4;
+        MoveToEx(dc, x, plot_top, nullptr);
+        LineTo(dc, x, plot_bottom);
+    }
+
+    for (int lane = 0; lane <= 4; ++lane) {
+        const int y =
+            plot_top + plot_height * lane / 4;
+        MoveToEx(dc, plot_left, y, nullptr);
+        LineTo(dc, plot_right, y);
+    }
+
+    SelectObject(dc, previous_pen);
+    DeleteObject(grid_pen);
+
+    const double first_seconds =
+        snapshot.samples.front().playback_seconds;
+    const double last_seconds = std::max(
+        first_seconds + 1.0,
+        snapshot.samples.back().playback_seconds
+    );
+    const double duration_seconds =
+        std::max(1.0, last_seconds - first_seconds);
+
+    HPEN event_pen = CreatePen(PS_SOLID, 1, event_color);
+    const HGDIOBJ old_event_pen = SelectObject(dc, event_pen);
+
+    for (t_size index = 0; index < snapshot.samples.size(); ++index) {
+        const int state = snapshot.samples[index].processing_state;
+        const int previous_state =
+            index > 0
+                ? snapshot.samples[index - 1].processing_state
+                : 0;
+        const bool activated =
+            (state == 2 || state == 3) &&
+            previous_state != 2 &&
+            previous_state != 3;
+
+        if (!activated) {
+            continue;
+        }
+
+        const double position =
+            (snapshot.samples[index].playback_seconds - first_seconds) /
+            duration_seconds;
+        const int x = plot_left + static_cast<int>(
+            position * static_cast<double>(plot_width)
+        );
+
+        MoveToEx(dc, x, plot_top, nullptr);
+        LineTo(dc, x, plot_bottom);
+    }
+
+    SelectObject(dc, old_event_pen);
+    DeleteObject(event_pen);
+
+    for (int lane = 0; lane < 4; ++lane) {
+        const int lane_top =
+            plot_top + plot_height * lane / 4;
+        const int lane_bottom =
+            plot_top + plot_height * (lane + 1) / 4;
+
+        RECT name_bounds = {
+            bounds.left + 6,
+            lane_top + 4,
+            plot_left - 8,
+            lane_top + 22
+        };
+        DrawTextW(
+            dc,
+            lane_names[lane],
+            -1,
+            &name_bounds,
+            DT_LEFT | DT_SINGLELINE | DT_END_ELLIPSIS | DT_NOPREFIX
+        );
+
+        wchar_t range_text[64] = {};
+        swprintf_s(
+            range_text,
+            L"%.0f ... %.0f %s",
+            lane_minimums[lane],
+            lane_maximums[lane],
+            lane_units[lane]
+        );
+        RECT range_bounds = {
+            bounds.left + 6,
+            lane_top + 22,
+            plot_left - 8,
+            lane_bottom - 2
+        };
+        DrawTextW(
+            dc,
+            range_text,
+            -1,
+            &range_bounds,
+            DT_LEFT | DT_TOP | DT_SINGLELINE | DT_END_ELLIPSIS |
+                DT_NOPREFIX
+        );
+
+        HPEN series_pen =
+            CreatePen(PS_SOLID, 2, lane_colors[lane]);
+        const HGDIOBJ old_pen = SelectObject(dc, series_pen);
+        bool previous_valid = false;
+
+        for (const auto& sample : snapshot.samples) {
+            const double value = trend_lane_value(sample, lane);
+            const bool valid =
+                std::isfinite(value) &&
+                (lane == 1 || lane == 2 || value > -190.0);
+
+            if (!valid) {
+                previous_valid = false;
+                continue;
+            }
+
+            const double position =
+                (sample.playback_seconds - first_seconds) /
+                duration_seconds;
+            const double normalized = clamp_value(
+                (value - lane_minimums[lane]) /
+                    (lane_maximums[lane] - lane_minimums[lane]),
+                0.0,
+                1.0
+            );
+            const int x = plot_left + static_cast<int>(
+                position * static_cast<double>(plot_width)
+            );
+            const int y = lane_bottom - 2 - static_cast<int>(
+                normalized *
+                static_cast<double>(
+                    std::max(1, lane_bottom - lane_top - 4)
+                )
+            );
+
+            if (previous_valid) {
+                LineTo(dc, x, y);
+            }
+            else {
+                MoveToEx(dc, x, y, nullptr);
+            }
+            previous_valid = true;
+        }
+
+        SelectObject(dc, old_pen);
+        DeleteObject(series_pen);
+    }
+
+    const auto format_time = [](double seconds) {
+        const unsigned total = static_cast<unsigned>(
+            std::max(0.0, seconds)
+        );
+        wchar_t text[32] = {};
+        swprintf_s(
+            text,
+            L"%u:%02u",
+            total / 60,
+            total % 60
+        );
+        return std::wstring(text);
+    };
+
+    const double time_values[] = {
+        first_seconds,
+        first_seconds + duration_seconds * 0.5,
+        last_seconds
+    };
+    const int time_positions[] = {
+        plot_left,
+        plot_left + plot_width / 2,
+        plot_right
+    };
+    const UINT time_alignments[] = {
+        DT_LEFT,
+        DT_CENTER,
+        DT_RIGHT
+    };
+
+    for (int index = 0; index < 3; ++index) {
+        RECT time_bounds = {
+            time_positions[index] - 44,
+            plot_bottom + 4,
+            time_positions[index] + 44,
+            bounds.bottom - 2
+        };
+        const std::wstring time_text =
+            format_time(time_values[index]);
+        DrawTextW(
+            dc,
+            time_text.c_str(),
+            -1,
+            &time_bounds,
+            time_alignments[index] | DT_SINGLELINE | DT_NOPREFIX
+        );
+    }
+}
+
+INT_PTR CALLBACK auto_control_trend_dialog_proc(
+    HWND wnd,
+    UINT message,
+    WPARAM wp,
+    LPARAM lp
+) {
+    auto* context =
+        reinterpret_cast<auto_control_trend_dialog_context*>(
+            GetWindowLongPtrW(wnd, GWLP_USERDATA)
+        );
+
+    switch (message) {
+    case WM_INITDIALOG:
+        context = new auto_control_trend_dialog_context();
+        SetWindowLongPtrW(
+            wnd,
+            GWLP_USERDATA,
+            reinterpret_cast<LONG_PTR>(context)
+        );
+        context->dark_mode.AddDialogWithControls(wnd);
+        initialize_auto_control_trend_layout(wnd, context);
+
+        SetWindowTextW(
+            wnd,
+            ui_text(
+                L"R128 音量ノーマライザー 自動制御推移グラフ",
+                L"R128 Loudness Normalizer - Automatic-Control Trend"
+            )
+        );
+        SetDlgItemTextW(
+            wnd,
+            IDC_TREND_LEGEND,
+            ui_text(
+                L"赤い縦線：自動制御の発動位置",
+                L"Red vertical line: automatic-control activation"
+            )
+        );
+        SetDlgItemTextW(
+            wnd,
+            IDOK,
+            ui_text(L"閉じる", L"Close")
+        );
+        refresh_auto_control_trend_dialog(wnd, context, true);
+        SetTimer(
+            wnd,
+            kTrendDialogTimerId,
+            kTrendDialogRefreshMilliseconds,
+            nullptr
+        );
+        return TRUE;
+
+    case WM_GETMINMAXINFO:
+        if (context != nullptr && context->layout_ready && lp != 0) {
+            auto* size_info = reinterpret_cast<MINMAXINFO*>(lp);
+            size_info->ptMinTrackSize.x =
+                context->minimum_window_width;
+            size_info->ptMinTrackSize.y =
+                context->minimum_window_height;
+            return TRUE;
+        }
+        break;
+
+    case WM_SIZE:
+        resize_auto_control_trend_dialog(
+            wnd,
+            context,
+            LOWORD(lp),
+            HIWORD(lp)
+        );
+        return TRUE;
+
+    case WM_DRAWITEM:
+        if (wp == IDC_TREND_GRAPH && lp != 0 && context != nullptr) {
+            draw_auto_control_trend_graph(
+                *reinterpret_cast<const DRAWITEMSTRUCT*>(lp),
+                context->snapshot,
+                static_cast<bool>(context->dark_mode)
+            );
+            return TRUE;
+        }
+        break;
+
+    case WM_TIMER:
+        if (wp == kTrendDialogTimerId) {
+            refresh_auto_control_trend_dialog(
+                wnd,
+                context,
+                false
+            );
+            return TRUE;
+        }
+        break;
+
+    case WM_THEMECHANGED:
+    case WM_SYSCOLORCHANGE:
+    case WM_SETTINGCHANGE:
+        InvalidateRect(
+            GetDlgItem(wnd, IDC_TREND_GRAPH),
+            nullptr,
+            FALSE
+        );
+        return TRUE;
+
+    case WM_COMMAND:
+        if (LOWORD(wp) == IDOK || LOWORD(wp) == IDCANCEL) {
+            EndDialog(wnd, LOWORD(wp));
+            return TRUE;
+        }
+        break;
+
+    case WM_CLOSE:
+        EndDialog(wnd, IDCANCEL);
+        return TRUE;
+
+    case WM_DESTROY:
+        KillTimer(wnd, kTrendDialogTimerId);
+        return TRUE;
+
+    case WM_NCDESTROY:
+        SetWindowLongPtrW(wnd, GWLP_USERDATA, 0);
+        delete context;
+        return FALSE;
+    }
+
+    return FALSE;
+}
+
 INT_PTR CALLBACK auto_control_history_dialog_proc(
     HWND wnd,
     UINT message,
@@ -3666,7 +4396,7 @@ std::wstring build_diagnostic_report() {
     swprintf_s(
         report,
         ui_text(
-        L"R128 音量ノーマライザー 1.8.0\r\n"
+        L"R128 音量ノーマライザー 1.9.0\r\n"
         L"再生状態: %s\r\n"
         L"補正状態: %s\r\n"
         L"補正ゲイン固定: %s\r\n"
@@ -3723,7 +4453,7 @@ std::wstring build_diagnostic_report() {
         L"処理評価: %s\r\n"
         L"サンプルレート: %u Hz\r\n"
         L"推定CPU負荷: %.2f %%\r\n",
-        L"R128 Loudness Normalizer 1.8.0\r\n"
+        L"R128 Loudness Normalizer 1.9.0\r\n"
         L"Playback state: %s\r\n"
         L"Normalization state: %s\r\n"
         L"Gain lock: %s\r\n"
@@ -5289,6 +6019,13 @@ constexpr context_help_entry kContextHelpEntries[] = {
         L"安全復帰を確認できます。"
     },
     {
+        IDC_SHOW_TREND_GRAPH,
+        L"推移グラフ",
+        L"再生中の曲について、Short-termラウドネス、総ゲイン、"
+        L"自動減衰量、True Peakを約1秒ごとに記録して表示します。"
+        L"赤い縦線は自動制御の発動位置です。"
+    },
+    {
         IDC_SHOW_DIAGNOSTIC_HELP,
         L"用語集",
         L"用語一覧から、このコンポーネント内での意味と"
@@ -5413,6 +6150,7 @@ const wchar_t* english_control_title(
     case IDC_COPY_DIAGNOSTICS: return L"Copy diagnostics";
     case IDC_SHOW_AUTO_HISTORY:
         return L"Automatic-Control History";
+    case IDC_SHOW_TREND_GRAPH: return L"Trend Graph";
     case IDC_SHOW_DIAGNOSTIC_HELP: return L"Glossary";
     default:
         break;
@@ -5562,6 +6300,10 @@ const wchar_t* english_context_help_description(int control_id) {
             L"activated, including the trigger reason, maximum automatic "
             L"attenuation, activation count, adjustment-limit status, "
             L"and safe recovery.";
+    case IDC_SHOW_TREND_GRAPH:
+        return L"Shows the current track's Short-term loudness, total gain, "
+            L"automatic attenuation, and True Peak about once per second. "
+            L"Red vertical lines mark automatic-control activation.";
     case IDC_SHOW_DIAGNOSTIC_HELP:
         return L"Opens definitions and guidance for the terms and values used here.";
     default:
@@ -5826,7 +6568,7 @@ bool confirm_restore_defaults(HWND owner) {
 }
 
 constexpr wchar_t kLicenseCreditsText[] =
-    L"R128 リアルタイム音量ノーマライザー 1.8.0\r\n"
+    L"R128 リアルタイム音量ノーマライザー 1.9.0\r\n"
     L"\r\n"
     L"作者：Maximum\r\n"
     L"Copyright (c) 2026 Maximum\r\n"
@@ -5843,7 +6585,7 @@ constexpr wchar_t kLicenseCreditsText[] =
     L"THIRD-PARTY-NOTICES.txtをご覧ください。";
 
 constexpr wchar_t kLicenseCreditsTextEnglish[] =
-    L"R128 Real-time Loudness Normalizer 1.8.0\r\n"
+    L"R128 Real-time Loudness Normalizer 1.9.0\r\n"
     L"\r\n"
     L"Author: Maximum\r\n"
     L"Copyright (c) 2026 Maximum\r\n"
@@ -6989,6 +7731,16 @@ INT_PTR CALLBACK config_dialog_proc(HWND wnd, UINT message, WPARAM wp, LPARAM lp
                 MAKEINTRESOURCEW(IDD_R128_AUTO_HISTORY),
                 wnd,
                 auto_control_history_dialog_proc,
+                0
+            );
+            return TRUE;
+
+        case IDC_SHOW_TREND_GRAPH:
+            DialogBoxParamW(
+                core_api::get_my_instance(),
+                MAKEINTRESOURCEW(IDD_R128_TREND_GRAPH),
+                wnd,
+                auto_control_trend_dialog_proc,
                 0
             );
             return TRUE;

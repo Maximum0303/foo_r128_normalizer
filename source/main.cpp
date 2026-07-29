@@ -2,13 +2,25 @@
 
 DECLARE_COMPONENT_VERSION(
     "R128 \xE3\x83\xAA\xE3\x82\xA2\xE3\x83\xAB\xE3\x82\xBF\xE3\x82\xA4\xE3\x83\xA0\xE9\x9F\xB3\xE9\x87\x8F\xE3\x83\x8E\xE3\x83\xBC\xE3\x83\x9E\xE3\x83\xA9\xE3\x82\xA4\xE3\x82\xB6\xE3\x83\xBC",
-    "1.8.0",
+    "1.9.0",
     "R128-based real-time loudness normalizer for foobar2000.\n"
     "foobar2000用のR128ベース・リアルタイム音量ノーマライザーです。\n"
     "\n"
     "Author: Maximum\n"
     "Copyright (c) 2026 Maximum\n"
     "License: MIT License\n"
+    "\n"
+    "v1.9.0 adds a lightweight trend graph for the currently playing track.\n"
+    "It records Short-term loudness, total applied gain, automatic attenuation,\n"
+    "and processed True Peak about once per second. Red event markers show\n"
+    "where automatic control activated. Drawing runs only while the graph\n"
+    "window is open, and the real-time audio thread performs no graph work.\n"
+    "\n"
+    "v1.9.0では、再生中の1曲だけを対象とする軽量な推移グラフを追加しました。\n"
+    "Short-termラウドネス、適用中の総ゲイン、自動減衰量、処理後True Peakを\n"
+    "約1秒ごとに記録し、自動制御の発動位置を赤い縦線で表示します。\n"
+    "描画はグラフ画面を開いている間だけ行い、リアルタイム音声処理スレッドでは\n"
+    "グラフ用の記録・描画を行いません。\n"
     "\n"
     "v1.8.0 adds a persistent Automatic-Control History for up to 100 tracks.\n"
     "It records playback time, title and artist, preset, trigger reason,\n"

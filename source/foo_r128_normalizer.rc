@@ -323,21 +323,41 @@ BEGIN
                     220, 306, 292, 12, SS_LEFTNOWORDWRAP | SS_NOPREFIX
 
     PUSHBUTTON      "測定リセット", IDC_RESET_MEASUREMENT,
-                    8, 325, 72, 15
+                    8, 325, 68, 15
     PUSHBUTTON      "診断コピー", IDC_COPY_DIAGNOSTICS,
-                    84, 325, 68, 15
+                    80, 325, 64, 15
     PUSHBUTTON      "自動制御履歴", IDC_SHOW_AUTO_HISTORY,
-                    156, 325, 132, 15
+                    148, 325, 84, 15
+    PUSHBUTTON      "推移グラフ", IDC_SHOW_TREND_GRAPH,
+                    236, 325, 68, 15
     PUSHBUTTON      "用語集", IDC_SHOW_DIAGNOSTIC_HELP,
-                    292, 325, 58, 15
+                    308, 325, 44, 15
     PUSHBUTTON      "初期設定", IDC_DEFAULTS,
-                    354, 325, 44, 15
+                    356, 325, 44, 15
     PUSHBUTTON      "適用", IDC_APPLY_SETTINGS,
-                    402, 325, 42, 15
+                    404, 325, 40, 15
     DEFPUSHBUTTON   "OK", IDOK,
                     448, 325, 30, 15
     PUSHBUTTON      "取消", IDCANCEL,
                     482, 325, 30, 15
+END
+
+IDD_R128_TREND_GRAPH DIALOGEX 0, 0, 700, 390
+STYLE DS_SHELLFONT | DS_MODALFRAME | DS_CENTER | WS_POPUP | WS_CAPTION |
+      WS_SYSMENU | WS_THICKFRAME | WS_MAXIMIZEBOX
+EXSTYLE WS_EX_CONTROLPARENT
+CAPTION "R128 音量ノーマライザー 自動制御推移グラフ"
+FONT 9, "Yu Gothic UI"
+BEGIN
+    LTEXT           "再生中の曲", IDC_TREND_TRACK,
+                    10, 9, 680, 14, SS_LEFTNOWORDWRAP | SS_NOPREFIX
+    LTEXT           "赤い縦線：自動制御の発動位置",
+                    IDC_TREND_LEGEND, 10, 27, 680, 14
+    CONTROL         "", IDC_TREND_GRAPH, "Static",
+                    SS_OWNERDRAW | WS_BORDER,
+                    10, 45, 680, 306
+    DEFPUSHBUTTON   "閉じる", IDOK,
+                    624, 362, 66, 17
 END
 
 IDD_R128_AUTO_HISTORY DIALOGEX 0, 0, 700, 326

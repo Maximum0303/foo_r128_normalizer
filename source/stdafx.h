@@ -23,6 +23,7 @@
 #include <deque>
 #include <iterator>
 #include <limits>
+#include <mutex>
 #include <numeric>
 #include <sstream>
 #include <string>
@@ -36,6 +37,7 @@
 #include "resource.h"
 
 #pragma comment(lib, "comctl32.lib")
+#pragma comment(lib, "gdi32.lib")
 #pragma comment(lib, "winmm.lib")
 #pragma comment(lib, "user32.lib")
 #pragma comment(lib, "uxtheme.lib")
