@@ -1,10 +1,10 @@
-R128 Real-time Loudness Normalizer v1.10.0
+R128 Real-time Loudness Normalizer v1.11.0
 
 For foobar2000 2.x / Windows x64
 
 INSTALLATION
 
-1. Open foo_r128_normalizer_v1.10.0.fb2k-component.
+1. Open foo_r128_normalizer_v1.11.0.fb2k-component.
 2. Follow the foobar2000 installation prompt.
 3. Restart foobar2000.
 
@@ -14,7 +14,7 @@ OPENING SETTINGS
 
 Open:
 
-Playback > R128 Loudness Normalizer Settings...
+Playback > R128 Real-time Loudness Normalizer Settings...
 
 The DSP must be present exactly once in the active DSP chain. If it is not
 present, add it from Playback > DSP Manager.
@@ -62,7 +62,7 @@ thread performs no graph recording or drawing work.
 
 USER PRESETS
 
-v1.10.0 can save all current Basic and Processing settings under a custom
+v1.10.0 and later can save all current Basic and Processing settings under a custom
 name. Select a saved preset and use Load, Overwrite, Rename, or Delete as
 needed. Save As creates a separate user preset from the current settings.
 
@@ -71,9 +71,18 @@ characters. Up to 100 user presets can be stored. The seven built-in presets
 remain read-only. User presets are stored only in the foobar2000
 configuration and are not transmitted externally.
 
+v1.11.0 adds Export Selected, Export All, and Import from File. User presets
+are stored in privacy-safe .r128preset files for backup or migration to
+another PC. If an imported name already exists, choose Overwrite, Save As,
+or Skip. The entire file is validated before existing presets are changed.
+
+Exported files contain only user-preset names and settings. They never
+contain track metadata, audio, file paths, Windows user names, PC names, or
+IP addresses.
+
 COMPATIBILITY
 
-v1.10.0 retains preset format v7, existing DSP and menu GUIDs, built-in preset
+v1.11.0 retains preset format v7, existing DSP and menu GUIDs, built-in preset
 values, audio-processing thresholds, and the 6 dB automatic-attenuation limit.
 User-preset and history storage are separate from DSP presets.
 

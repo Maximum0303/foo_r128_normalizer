@@ -1,14 +1,26 @@
 ﻿#include "stdafx.h"
 
 DECLARE_COMPONENT_VERSION(
-    "R128 \xE3\x83\xAA\xE3\x82\xA2\xE3\x83\xAB\xE3\x82\xBF\xE3\x82\xA4\xE3\x83\xA0\xE9\x9F\xB3\xE9\x87\x8F\xE3\x83\x8E\xE3\x83\xBC\xE3\x83\x9E\xE3\x83\xA9\xE3\x82\xA4\xE3\x82\xB6\xE3\x83\xBC",
-    "1.10.0",
+    "R128 Real-time Loudness Normalizer",
+    "1.11.0",
     "R128-based real-time loudness normalizer for foobar2000.\n"
     "foobar2000用のR128ベース・リアルタイム音量ノーマライザーです。\n"
     "\n"
     "Author: Maximum\n"
     "Copyright (c) 2026 Maximum\n"
     "License: MIT License\n"
+    "\n"
+    "v1.11.0 adds privacy-safe export and import for user presets.\n"
+    "The selected preset or all presets can be written to one .r128preset\n"
+    "file. Duplicate names can be overwritten, saved under another name,\n"
+    "or skipped. Files are fully validated before existing presets change.\n"
+    "Only preset names and settings are included; track titles, file paths,\n"
+    "and PC information are never exported.\n"
+    "\n"
+    "v1.11.0では、ユーザープリセットの書き出し／読み込みに対応しました。\n"
+    "選択した1件または全件を.r128presetファイルへ保存できます。\n"
+    "同名時は上書き、別名保存、スキップから選択でき、読み込み前に\n"
+    "ファイル全体を検証します。曲名、ファイルパス、PC情報は含みません。\n"
     "\n"
     "v1.10.0 adds user presets stored separately from DSP preset format v7.\n"
     "The current settings can be saved under a Unicode name, loaded,\n"

@@ -7,6 +7,7 @@
 #include <winsock2.h>
 #include <windows.h>
 #include <commctrl.h>
+#include <commdlg.h>
 #include <uxtheme.h>
 
 #include <objbase.h>
@@ -39,6 +40,7 @@
 #include "resource.h"
 
 #pragma comment(lib, "comctl32.lib")
+#pragma comment(lib, "comdlg32.lib")
 #pragma comment(lib, "gdi32.lib")
 #pragma comment(lib, "winmm.lib")
 #pragma comment(lib, "user32.lib")

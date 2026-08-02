@@ -105,6 +105,8 @@ constexpr t_size kMaximumAutoControlHistoryEntries = 100;
 constexpr t_size kMaximumHistoryMetadataCharacters = 512;
 constexpr t_size kMaximumUserPresets = 100;
 constexpr t_size kMaximumUserPresetNameCharacters = 64;
+constexpr DWORD kMaximumUserPresetFileBytes = 1024 * 1024;
+constexpr const char* kUserPresetFileMagic = "R128PRESET1";
 
 // foobar2000 audio_chunk channel flags. Interleaved sample order follows
 // the ascending order of these channel-map flags.
@@ -1102,15 +1104,11 @@ bool user_preset_settings_are_valid(
         value.modern_strength_percent <= 100.0f;
 }
 
-void save_user_presets() {
-    std::ostringstream output;
-    output << "R128U1\n";
-    output << std::setprecision(
-        std::numeric_limits<float>::max_digits10
-    );
-
-    for (const auto& entry : g_user_presets) {
-        output
+void append_user_preset_record(
+    std::ostringstream& output,
+    const user_preset_entry& entry
+) {
+    output
             << hex_encode(wide_to_utf8(entry.name)) << '\t'
             << entry.settings.target_lufs << '\t'
             << entry.settings.max_boost_db << '\t'
@@ -1131,9 +1129,175 @@ void save_user_presets() {
             << (entry.settings.enable_adaptive_master ? 1 : 0) << '\t'
             << (entry.settings.enable_three_band_master ? 1 : 0)
             << '\n';
+}
+
+void save_user_presets() {
+    std::ostringstream output;
+    output << "R128U1\n";
+    output << std::setprecision(
+        std::numeric_limits<float>::max_digits10
+    );
+
+    for (const auto& entry : g_user_presets) {
+        append_user_preset_record(output, entry);
     }
 
     g_cfg_user_presets = output.str().c_str();
+}
+
+std::string serialize_user_preset_file(
+    const std::vector<user_preset_entry>& entries
+) {
+    std::ostringstream output;
+    output << kUserPresetFileMagic << '\n';
+    output << entries.size() << '\n';
+    output << std::setprecision(
+        std::numeric_limits<float>::max_digits10
+    );
+
+    for (const auto& entry : entries) {
+        append_user_preset_record(output, entry);
+    }
+
+    return output.str();
+}
+
+bool parse_strict_float(
+    const std::string& text,
+    float& result
+) {
+    try {
+        t_size parsed = 0;
+        result = std::stof(text, &parsed);
+        return parsed == text.size();
+    }
+    catch (...) {
+        return false;
+    }
+}
+
+bool parse_strict_boolean(
+    const std::string& text,
+    bool& result
+) {
+    if (text == "0") {
+        result = false;
+        return true;
+    }
+    if (text == "1") {
+        result = true;
+        return true;
+    }
+    return false;
+}
+
+bool parse_user_preset_record(
+    const std::string& line,
+    user_preset_entry& entry
+) {
+    const auto fields = split_history_fields(line);
+    if (fields.size() != 19) {
+        return false;
+    }
+
+    std::string name_utf8;
+    if (!hex_decode(fields[0], name_utf8)) {
+        return false;
+    }
+
+    entry.name = trim_user_preset_name(
+        utf8_to_wide(name_utf8.c_str())
+    );
+
+    if (!parse_strict_float(fields[1], entry.settings.target_lufs) ||
+        !parse_strict_float(fields[2], entry.settings.max_boost_db) ||
+        !parse_strict_float(fields[3], entry.settings.max_attenuation_db) ||
+        !parse_strict_float(fields[4], entry.settings.true_peak_limit_dbtp) ||
+        !parse_strict_float(fields[5], entry.settings.lookahead_ms) ||
+        !parse_strict_float(fields[6], entry.settings.limiter_release_ms) ||
+        !parse_strict_float(fields[7], entry.settings.startup_analysis_seconds) ||
+        !parse_strict_float(fields[8], entry.settings.silence_guard_lufs) ||
+        !parse_strict_float(fields[9], entry.settings.gain_lock_seconds) ||
+        !parse_strict_float(fields[10], entry.settings.gain_lock_tolerance_lu) ||
+        !parse_strict_float(fields[11], entry.settings.modern_strength_percent) ||
+        !parse_strict_boolean(fields[12], entry.settings.reset_each_track) ||
+        !parse_strict_boolean(fields[13], entry.settings.enable_peak_guard) ||
+        !parse_strict_boolean(fields[14], entry.settings.enable_silence_guard) ||
+        !parse_strict_boolean(fields[15], entry.settings.enable_gain_lock) ||
+        !parse_strict_boolean(fields[16], entry.settings.enable_modern_boost) ||
+        !parse_strict_boolean(fields[17], entry.settings.enable_adaptive_master) ||
+        !parse_strict_boolean(fields[18], entry.settings.enable_three_band_master)) {
+        return false;
+    }
+
+    return
+        user_preset_name_is_valid(entry.name) &&
+        !user_preset_name_is_reserved(entry.name) &&
+        user_preset_settings_are_valid(entry.settings);
+}
+
+bool parse_user_preset_file(
+    const std::string& contents,
+    std::vector<user_preset_entry>& entries
+) {
+    entries.clear();
+    std::istringstream input(contents);
+    std::string line;
+
+    if (!std::getline(input, line) || line != kUserPresetFileMagic) {
+        return false;
+    }
+
+    if (!std::getline(input, line) || line.empty()) {
+        return false;
+    }
+
+    t_size count = 0;
+    try {
+        t_size parsed = 0;
+        const unsigned long parsed_count = std::stoul(line, &parsed, 10);
+        if (parsed != line.size() ||
+            parsed_count == 0 ||
+            parsed_count > kMaximumUserPresets) {
+            return false;
+        }
+        count = static_cast<t_size>(parsed_count);
+    }
+    catch (...) {
+        return false;
+    }
+
+    entries.reserve(count);
+    for (t_size index = 0; index < count; ++index) {
+        if (!std::getline(input, line)) {
+            entries.clear();
+            return false;
+        }
+
+        user_preset_entry entry;
+        if (!parse_user_preset_record(line, entry)) {
+            entries.clear();
+            return false;
+        }
+
+        for (const auto& existing : entries) {
+            if (user_preset_names_equal(existing.name, entry.name)) {
+                entries.clear();
+                return false;
+            }
+        }
+
+        entries.push_back(std::move(entry));
+    }
+
+    while (std::getline(input, line)) {
+        if (!line.empty()) {
+            entries.clear();
+            return false;
+        }
+    }
+
+    return entries.size() == count;
 }
 
 void ensure_user_presets_loaded() {
@@ -2298,6 +2462,9 @@ constexpr localized_control_text kPrimaryUiText[] = {
     { IDC_USER_PRESET_OVERWRITE, L"上書き", L"Overwrite" },
     { IDC_USER_PRESET_RENAME, L"名前変更", L"Rename" },
     { IDC_USER_PRESET_DELETE, L"削除", L"Delete" },
+    { IDC_USER_PRESET_EXPORT_SELECTED, L"選択を書き出し", L"Export Selected" },
+    { IDC_USER_PRESET_EXPORT_ALL, L"すべて書き出し", L"Export All" },
+    { IDC_USER_PRESET_IMPORT, L"ファイルから読み込み", L"Import from File" },
     { IDC_COMPARE_GROUP, L"選択中のプリセット／比較", L"Selected preset / comparison" },
     { IDC_COMPARE_LOUDNESS_MATCH, L"音量一致", L"Loudness match" },
     { IDC_ORIGINAL_COMPARE, L"比較（押している間）", L"Compare (hold)" },
@@ -2354,7 +2521,7 @@ void apply_primary_ui_language(
         wnd,
         ui_text(
             L"R128 音量ノーマライザー",
-            L"R128 Loudness Normalizer"
+            L"R128 Real-time Loudness Normalizer"
         )
     );
 
@@ -4077,7 +4244,7 @@ INT_PTR CALLBACK auto_control_trend_dialog_proc(
             wnd,
             ui_text(
                 L"R128 音量ノーマライザー 自動制御推移グラフ",
-                L"R128 Loudness Normalizer - Automatic-Control Trend"
+                L"R128 Real-time Loudness Normalizer - Automatic-Control Trend"
             )
         );
         SetDlgItemTextW(
@@ -4208,7 +4375,7 @@ INT_PTR CALLBACK auto_control_history_dialog_proc(
             wnd,
             ui_text(
                 L"R128 音量ノーマライザー 自動制御履歴",
-                L"R128 Loudness Normalizer - Automatic-Control History"
+                L"R128 Real-time Loudness Normalizer - Automatic-Control History"
             )
         );
         SetDlgItemTextW(
@@ -4719,7 +4886,7 @@ std::wstring build_diagnostic_report() {
     swprintf_s(
         report,
         ui_text(
-        L"R128 音量ノーマライザー 1.10.0\r\n"
+        L"R128 音量ノーマライザー 1.11.0\r\n"
         L"再生状態: %s\r\n"
         L"補正状態: %s\r\n"
         L"補正ゲイン固定: %s\r\n"
@@ -4776,7 +4943,7 @@ std::wstring build_diagnostic_report() {
         L"処理評価: %s\r\n"
         L"サンプルレート: %u Hz\r\n"
         L"推定CPU負荷: %.2f %%\r\n",
-        L"R128 Loudness Normalizer 1.10.0\r\n"
+        L"R128 Real-time Loudness Normalizer 1.11.0\r\n"
         L"Playback state: %s\r\n"
         L"Normalization state: %s\r\n"
         L"Gain lock: %s\r\n"
@@ -6076,6 +6243,26 @@ constexpr tooltip_entry kPresetTooltips[] = {
         L"Currently applied audio settings do not change."
     },
     {
+        IDC_USER_PRESET_EXPORT_SELECTED,
+        L"選択したユーザープリセットだけを、個人情報を含まない"
+        L".r128presetファイルへ書き出します。",
+        L"Exports only the selected user preset to a privacy-safe "
+        L".r128preset file."
+    },
+    {
+        IDC_USER_PRESET_EXPORT_ALL,
+        L"保存済みのユーザープリセットをすべて、1つの"
+        L".r128presetファイルへ書き出します。",
+        L"Exports all saved user presets to one .r128preset file."
+    },
+    {
+        IDC_USER_PRESET_IMPORT,
+        L".r128presetファイルからユーザープリセットを読み込みます。"
+        L"同名の項目は上書き／別名保存／スキップを選べます。",
+        L"Imports user presets from a .r128preset file. For duplicate "
+        L"names, choose overwrite, save under another name, or skip."
+    },
+    {
         IDC_COMPARE_LOUDNESS_MATCH,
         L"オン：ラウドネスをそろえた公平なA/B比較。"
         L"オフ：このDSPを外す完全バイパス比較。",
@@ -6940,7 +7127,7 @@ bool confirm_restore_defaults(HWND owner) {
 }
 
 constexpr wchar_t kLicenseCreditsText[] =
-    L"R128 リアルタイム音量ノーマライザー 1.10.0\r\n"
+    L"R128 リアルタイム音量ノーマライザー 1.11.0\r\n"
     L"\r\n"
     L"作者：Maximum\r\n"
     L"Copyright (c) 2026 Maximum\r\n"
@@ -6957,7 +7144,7 @@ constexpr wchar_t kLicenseCreditsText[] =
     L"THIRD-PARTY-NOTICES.txtをご覧ください。";
 
 constexpr wchar_t kLicenseCreditsTextEnglish[] =
-    L"R128 Real-time Loudness Normalizer 1.10.0\r\n"
+    L"R128 Real-time Loudness Normalizer 1.11.0\r\n"
     L"\r\n"
     L"Author: Maximum\r\n"
     L"Copyright (c) 2026 Maximum\r\n"
@@ -7214,7 +7401,7 @@ INT_PTR CALLBACK glossary_dialog_proc(
             wnd,
             ui_text(
                 L"R128 音量ノーマライザー 用語集",
-                L"R128 Loudness Normalizer Glossary"
+                L"R128 Real-time Loudness Normalizer Glossary"
             )
         );
         SetDlgItemTextW(
@@ -7456,6 +7643,314 @@ bool request_user_preset_name(
     return true;
 }
 
+enum class user_preset_conflict_choice {
+    overwrite,
+    rename,
+    skip
+};
+
+struct preset_conflict_dialog_context {
+    std::wstring name;
+    fb2k::CCoreDarkModeHooks dark_mode;
+};
+
+INT_PTR CALLBACK preset_conflict_dialog_proc(
+    HWND wnd,
+    UINT message,
+    WPARAM wp,
+    LPARAM lp
+) {
+    auto* context =
+        reinterpret_cast<preset_conflict_dialog_context*>(
+            GetWindowLongPtrW(wnd, GWLP_USERDATA)
+        );
+
+    switch (message) {
+    case WM_INITDIALOG: {
+        context =
+            reinterpret_cast<preset_conflict_dialog_context*>(lp);
+        SetWindowLongPtrW(
+            wnd,
+            GWLP_USERDATA,
+            reinterpret_cast<LONG_PTR>(context)
+        );
+
+        if (context != nullptr) {
+            context->dark_mode.AddDialogWithControls(wnd);
+            wchar_t message_text[512] = {};
+            swprintf_s(
+                message_text,
+                ui_text(
+                    L"同じ名前のユーザープリセット「%s」があります。\r\n"
+                    L"このプリセットの読み込み方法を選んでください。",
+                    L"A user preset named \"%s\" already exists.\r\n"
+                    L"Choose how to import this preset."
+                ),
+                context->name.c_str()
+            );
+            SetDlgItemTextW(
+                wnd,
+                IDC_PRESET_CONFLICT_TEXT,
+                message_text
+            );
+        }
+
+        SetWindowTextW(
+            wnd,
+            ui_text(
+                L"同名のユーザープリセット",
+                L"Duplicate User Preset"
+            )
+        );
+        SetDlgItemTextW(
+            wnd,
+            IDC_PRESET_CONFLICT_OVERWRITE,
+            ui_text(L"上書き", L"Overwrite")
+        );
+        SetDlgItemTextW(
+            wnd,
+            IDC_PRESET_CONFLICT_RENAME,
+            ui_text(L"別名保存", L"Save As")
+        );
+        SetDlgItemTextW(
+            wnd,
+            IDC_PRESET_CONFLICT_SKIP,
+            ui_text(L"スキップ", L"Skip")
+        );
+        return TRUE;
+    }
+
+    case WM_COMMAND:
+        if (LOWORD(wp) == IDC_PRESET_CONFLICT_OVERWRITE ||
+            LOWORD(wp) == IDC_PRESET_CONFLICT_RENAME ||
+            LOWORD(wp) == IDC_PRESET_CONFLICT_SKIP) {
+            EndDialog(wnd, LOWORD(wp));
+            return TRUE;
+        }
+        break;
+
+    case WM_CLOSE:
+        EndDialog(wnd, IDC_PRESET_CONFLICT_SKIP);
+        return TRUE;
+    }
+
+    return FALSE;
+}
+
+user_preset_conflict_choice request_user_preset_conflict_choice(
+    HWND parent,
+    const std::wstring& name
+) {
+    preset_conflict_dialog_context context;
+    context.name = name;
+
+    const INT_PTR result = DialogBoxParamW(
+        core_api::get_my_instance(),
+        MAKEINTRESOURCEW(IDD_R128_PRESET_CONFLICT),
+        parent,
+        preset_conflict_dialog_proc,
+        reinterpret_cast<LPARAM>(&context)
+    );
+
+    if (result == IDC_PRESET_CONFLICT_OVERWRITE) {
+        return user_preset_conflict_choice::overwrite;
+    }
+    if (result == IDC_PRESET_CONFLICT_RENAME) {
+        return user_preset_conflict_choice::rename;
+    }
+    return user_preset_conflict_choice::skip;
+}
+
+std::wstring safe_user_preset_file_name(
+    const std::wstring& name
+) {
+    std::wstring result = name;
+    constexpr const wchar_t* kInvalid = L"<>:\"/\\|?*";
+
+    for (wchar_t& character : result) {
+        if (std::iswcntrl(character) != 0 ||
+            std::wcschr(kInvalid, character) != nullptr) {
+            character = L'_';
+        }
+    }
+
+    while (!result.empty() &&
+           (result.back() == L' ' || result.back() == L'.')) {
+        result.pop_back();
+    }
+
+    if (result.empty()) {
+        result = L"user_preset";
+    }
+
+    result = L"foo_r128_preset_" + result;
+    result += L".r128preset";
+    return result;
+}
+
+bool choose_user_preset_export_path(
+    HWND parent,
+    const std::wstring& suggested_name,
+    std::wstring& path
+) {
+    std::vector<wchar_t> buffer(32768, L'\0');
+    wcsncpy_s(
+        buffer.data(),
+        buffer.size(),
+        suggested_name.c_str(),
+        _TRUNCATE
+    );
+
+    const wchar_t filter[] =
+        L"R128 user preset files (*.r128preset)\0*.r128preset\0"
+        L"All files (*.*)\0*.*\0\0";
+    OPENFILENAMEW dialog = {};
+    dialog.lStructSize = sizeof(dialog);
+    dialog.hwndOwner = parent;
+    dialog.lpstrFilter = filter;
+    dialog.lpstrFile = buffer.data();
+    dialog.nMaxFile = static_cast<DWORD>(buffer.size());
+    dialog.lpstrDefExt = L"r128preset";
+    dialog.Flags = OFN_EXPLORER | OFN_PATHMUSTEXIST |
+        OFN_NOCHANGEDIR | OFN_OVERWRITEPROMPT;
+
+    if (!GetSaveFileNameW(&dialog)) {
+        return false;
+    }
+
+    path = buffer.data();
+    return !path.empty();
+}
+
+bool choose_user_preset_import_path(
+    HWND parent,
+    std::wstring& path
+) {
+    std::vector<wchar_t> buffer(32768, L'\0');
+    const wchar_t filter[] =
+        L"R128 user preset files (*.r128preset)\0*.r128preset\0"
+        L"All files (*.*)\0*.*\0\0";
+    OPENFILENAMEW dialog = {};
+    dialog.lStructSize = sizeof(dialog);
+    dialog.hwndOwner = parent;
+    dialog.lpstrFilter = filter;
+    dialog.lpstrFile = buffer.data();
+    dialog.nMaxFile = static_cast<DWORD>(buffer.size());
+    dialog.lpstrDefExt = L"r128preset";
+    dialog.Flags = OFN_EXPLORER | OFN_FILEMUSTEXIST |
+        OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR;
+
+    if (!GetOpenFileNameW(&dialog)) {
+        return false;
+    }
+
+    path = buffer.data();
+    return !path.empty();
+}
+
+bool write_user_preset_file(
+    const std::wstring& path,
+    const std::string& contents
+) {
+    std::wstring temporary_path;
+    HANDLE file = INVALID_HANDLE_VALUE;
+
+    for (unsigned attempt = 0; attempt < 100; ++attempt) {
+        temporary_path = path + L".tmp" + std::to_wstring(
+            GetTickCount64() + attempt
+        );
+        file = CreateFileW(
+            temporary_path.c_str(),
+            GENERIC_WRITE,
+            0,
+            nullptr,
+            CREATE_NEW,
+            FILE_ATTRIBUTE_NORMAL,
+            nullptr
+        );
+        if (file != INVALID_HANDLE_VALUE) {
+            break;
+        }
+    }
+
+    if (file == INVALID_HANDLE_VALUE) {
+        return false;
+    }
+
+    DWORD written = 0;
+    const bool write_ok =
+        contents.size() <= std::numeric_limits<DWORD>::max() &&
+        WriteFile(
+            file,
+            contents.data(),
+            static_cast<DWORD>(contents.size()),
+            &written,
+            nullptr
+        ) != FALSE &&
+        written == contents.size() &&
+        FlushFileBuffers(file) != FALSE;
+    CloseHandle(file);
+
+    if (!write_ok ||
+        MoveFileExW(
+            temporary_path.c_str(),
+            path.c_str(),
+            MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH
+        ) == FALSE) {
+        DeleteFileW(temporary_path.c_str());
+        return false;
+    }
+
+    return true;
+}
+
+bool read_user_preset_file(
+    const std::wstring& path,
+    std::string& contents
+) {
+    contents.clear();
+    HANDLE file = CreateFileW(
+        path.c_str(),
+        GENERIC_READ,
+        FILE_SHARE_READ,
+        nullptr,
+        OPEN_EXISTING,
+        FILE_ATTRIBUTE_NORMAL | FILE_FLAG_SEQUENTIAL_SCAN,
+        nullptr
+    );
+    if (file == INVALID_HANDLE_VALUE) {
+        return false;
+    }
+
+    LARGE_INTEGER size = {};
+    const bool size_ok =
+        GetFileSizeEx(file, &size) != FALSE &&
+        size.QuadPart > 0 &&
+        size.QuadPart <= kMaximumUserPresetFileBytes;
+    if (!size_ok) {
+        CloseHandle(file);
+        return false;
+    }
+
+    contents.resize(static_cast<t_size>(size.QuadPart));
+    DWORD bytes_read = 0;
+    const bool read_ok =
+        ReadFile(
+            file,
+            contents.data(),
+            static_cast<DWORD>(contents.size()),
+            &bytes_read,
+            nullptr
+        ) != FALSE &&
+        bytes_read == contents.size();
+    CloseHandle(file);
+
+    if (!read_ok) {
+        contents.clear();
+    }
+    return read_ok;
+}
+
 struct dialog_context {
     r128_settings value;
     dsp_preset_edit_callback* callback = nullptr;
@@ -7530,6 +8025,14 @@ void update_user_preset_button_state(HWND wnd) {
     EnableWindow(
         GetDlgItem(wnd, IDC_USER_PRESET_DELETE),
         has_selection
+    );
+    EnableWindow(
+        GetDlgItem(wnd, IDC_USER_PRESET_EXPORT_SELECTED),
+        has_selection
+    );
+    EnableWindow(
+        GetDlgItem(wnd, IDC_USER_PRESET_EXPORT_ALL),
+        g_user_presets.empty() ? FALSE : TRUE
     );
 }
 
@@ -8293,6 +8796,356 @@ void delete_selected_user_preset(
     );
 }
 
+void export_user_presets(
+    HWND wnd,
+    bool selected_only
+) {
+    ensure_user_presets_loaded();
+    std::vector<user_preset_entry> entries;
+    std::wstring suggested_name;
+
+    if (selected_only) {
+        const int index = selected_user_preset_index(wnd);
+        if (index < 0) {
+            return;
+        }
+
+        entries.push_back(
+            g_user_presets[static_cast<t_size>(index)]
+        );
+        suggested_name = safe_user_preset_file_name(
+            entries.front().name
+        );
+    }
+    else {
+        if (g_user_presets.empty()) {
+            MessageBoxW(
+                wnd,
+                ui_text(
+                    L"書き出すユーザープリセットがありません。",
+                    L"There are no user presets to export."
+                ),
+                ui_text(
+                    L"ユーザープリセットの書き出し",
+                    L"Export User Presets"
+                ),
+                MB_OK | MB_ICONINFORMATION
+            );
+            return;
+        }
+
+        entries = g_user_presets;
+        suggested_name =
+            L"foo_r128_normalizer_user_presets.r128preset";
+    }
+
+    std::wstring path;
+    if (!choose_user_preset_export_path(
+            wnd,
+            suggested_name,
+            path
+        )) {
+        return;
+    }
+
+    const std::string contents =
+        serialize_user_preset_file(entries);
+    if (!write_user_preset_file(path, contents)) {
+        MessageBoxW(
+            wnd,
+            ui_text(
+                L"ファイルを書き出せませんでした。\n"
+                L"保存先への書き込み権限や、ファイルが使用中でないか"
+                L"確認してください。",
+                L"Could not export the file.\n"
+                L"Check write access to the destination and make sure "
+                L"the file is not in use."
+            ),
+            ui_text(
+                L"ユーザープリセットの書き出し",
+                L"Export User Presets"
+            ),
+            MB_OK | MB_ICONWARNING
+        );
+        return;
+    }
+
+    wchar_t message[512] = {};
+    swprintf_s(
+        message,
+        ui_text(
+            L"%zu件のユーザープリセットを書き出しました。\n\n"
+            L"ファイルにはプリセット名と設定値だけが含まれ、"
+            L"曲名、ファイルパス、PC情報は含まれません。",
+            L"Exported %zu user preset(s).\n\n"
+            L"The file contains only preset names and settings. It does "
+            L"not contain track titles, file paths, or PC information."
+        ),
+        entries.size()
+    );
+    MessageBoxW(
+        wnd,
+        message,
+        ui_text(
+            L"書き出し完了",
+            L"Export Complete"
+        ),
+        MB_OK | MB_ICONINFORMATION
+    );
+    set_control_text(
+        wnd,
+        IDC_APPLY_STATUS,
+        ui_text(
+            L"ユーザープリセットを書き出しました",
+            L"User presets exported"
+        )
+    );
+}
+
+std::wstring suggested_import_preset_name(
+    const std::wstring& original
+) {
+    const std::wstring suffix = ui_text(
+        L"（読み込み）",
+        L" (imported)"
+    );
+
+    for (unsigned number = 1; number <= 1000; ++number) {
+        const std::wstring numbered_suffix = number == 1
+            ? suffix
+            : suffix + L" " + std::to_wstring(number);
+        const t_size maximum_base =
+            kMaximumUserPresetNameCharacters > numbered_suffix.size()
+                ? kMaximumUserPresetNameCharacters -
+                    numbered_suffix.size()
+                : 0;
+        std::wstring candidate = original.substr(0, maximum_base);
+        candidate += numbered_suffix;
+
+        if (user_preset_name_is_valid(candidate) &&
+            !user_preset_name_is_reserved(candidate) &&
+            find_user_preset_by_name(candidate) < 0) {
+            return candidate;
+        }
+    }
+
+    return L"";
+}
+
+bool request_import_preset_name(
+    HWND wnd,
+    const std::wstring& original,
+    std::wstring& result
+) {
+    std::wstring initial_name =
+        suggested_import_preset_name(original);
+    if (initial_name.empty()) {
+        initial_name = original;
+    }
+
+    for (;;) {
+        std::wstring name;
+        if (!request_user_preset_name(
+                wnd,
+                ui_text(
+                    L"別名で読み込み",
+                    L"Import with Another Name"
+                ),
+                ui_text(
+                    L"読み込むプリセットの新しい名前を入力してください。",
+                    L"Enter a new name for the imported preset."
+                ),
+                initial_name,
+                name
+            )) {
+            return false;
+        }
+
+        if (find_user_preset_by_name(name) < 0) {
+            result = name;
+            return true;
+        }
+
+        MessageBoxW(
+            wnd,
+            ui_text(
+                L"同じ名前のユーザープリセットがすでにあります。"
+                L"別の名前を入力してください。",
+                L"A user preset with that name already exists. "
+                L"Enter a different name."
+            ),
+            ui_text(
+                L"プリセット名の確認",
+                L"Check Preset Name"
+            ),
+            MB_OK | MB_ICONWARNING
+        );
+        initial_name = name;
+    }
+}
+
+void import_user_presets(
+    HWND wnd,
+    dialog_context* context
+) {
+    std::wstring path;
+    if (!choose_user_preset_import_path(wnd, path)) {
+        return;
+    }
+
+    std::string contents;
+    std::vector<user_preset_entry> imported;
+    if (!read_user_preset_file(path, contents) ||
+        !parse_user_preset_file(contents, imported)) {
+        MessageBoxW(
+            wnd,
+            ui_text(
+                L"このファイルは読み込めません。\n"
+                L"対応する.r128preset形式でないか、内容が壊れています。\n"
+                L"現在のユーザープリセットは変更されません。",
+                L"This file cannot be imported.\n"
+                L"It is not a supported .r128preset file or its contents "
+                L"are damaged. Existing user presets were not changed."
+            ),
+            ui_text(
+                L"ユーザープリセットの読み込み",
+                L"Import User Presets"
+            ),
+            MB_OK | MB_ICONWARNING
+        );
+        return;
+    }
+
+    ensure_user_presets_loaded();
+    t_size added = 0;
+    t_size overwritten = 0;
+    t_size renamed = 0;
+    t_size skipped = 0;
+    bool changed = false;
+    std::wstring preferred_name;
+
+    for (auto& entry : imported) {
+        const int duplicate = find_user_preset_by_name(entry.name);
+        if (duplicate >= 0) {
+            const auto choice = request_user_preset_conflict_choice(
+                wnd,
+                entry.name
+            );
+
+            if (choice == user_preset_conflict_choice::skip) {
+                ++skipped;
+                continue;
+            }
+
+            if (choice == user_preset_conflict_choice::overwrite) {
+                g_user_presets[
+                    static_cast<t_size>(duplicate)
+                ].settings = entry.settings;
+                preferred_name = entry.name;
+                ++overwritten;
+                changed = true;
+                continue;
+            }
+
+            if (g_user_presets.size() >= kMaximumUserPresets) {
+                ++skipped;
+                continue;
+            }
+
+            std::wstring new_name;
+            if (!request_import_preset_name(
+                    wnd,
+                    entry.name,
+                    new_name
+                )) {
+                ++skipped;
+                continue;
+            }
+
+            entry.name = new_name;
+            g_user_presets.push_back(std::move(entry));
+            preferred_name = new_name;
+            ++renamed;
+            changed = true;
+            continue;
+        }
+
+        if (g_user_presets.size() >= kMaximumUserPresets) {
+            ++skipped;
+            continue;
+        }
+
+        preferred_name = entry.name;
+        g_user_presets.push_back(std::move(entry));
+        ++added;
+        changed = true;
+    }
+
+    if (changed) {
+        save_user_presets();
+    }
+
+    if (context != nullptr &&
+        !context->active_user_preset_name.empty()) {
+        const int active_index = find_user_preset_by_name(
+            context->active_user_preset_name
+        );
+        if (active_index >= 0) {
+            context->active_user_preset_modified =
+                !settings_equal(
+                    context->value,
+                    g_user_presets[
+                        static_cast<t_size>(active_index)
+                    ].settings
+                );
+            update_profile_indicator(
+                wnd,
+                context->value,
+                !context->active_user_preset_applied,
+                &context->active_user_preset_name,
+                context->active_user_preset_modified
+            );
+            preferred_name = context->active_user_preset_name;
+        }
+    }
+
+    refresh_user_preset_combo(wnd, preferred_name);
+
+    wchar_t summary[512] = {};
+    swprintf_s(
+        summary,
+        ui_text(
+            L"読み込みが完了しました。\n\n"
+            L"新規: %zu件\n上書き: %zu件\n別名保存: %zu件\n"
+            L"スキップ: %zu件",
+            L"Import complete.\n\n"
+            L"Added: %zu\nOverwritten: %zu\nSaved under another name: %zu\n"
+            L"Skipped: %zu"
+        ),
+        added,
+        overwritten,
+        renamed,
+        skipped
+    );
+    MessageBoxW(
+        wnd,
+        summary,
+        ui_text(
+            L"読み込み完了",
+            L"Import Complete"
+        ),
+        MB_OK | MB_ICONINFORMATION
+    );
+    set_control_text(
+        wnd,
+        IDC_APPLY_STATUS,
+        ui_text(
+            L"ユーザープリセットを読み込みました",
+            L"User presets imported"
+        )
+    );
+}
+
 bool apply_dialog_settings(
     HWND wnd,
     dialog_context* context
@@ -8790,6 +9643,18 @@ INT_PTR CALLBACK config_dialog_proc(HWND wnd, UINT message, WPARAM wp, LPARAM lp
             delete_selected_user_preset(wnd, context);
             return TRUE;
 
+        case IDC_USER_PRESET_EXPORT_SELECTED:
+            export_user_presets(wnd, true);
+            return TRUE;
+
+        case IDC_USER_PRESET_EXPORT_ALL:
+            export_user_presets(wnd, false);
+            return TRUE;
+
+        case IDC_USER_PRESET_IMPORT:
+            import_user_presets(wnd, context);
+            return TRUE;
+
         case IDC_DEFAULTS:
             if (confirm_restore_defaults(wnd)) {
                 select_profile_in_dialog(
@@ -9123,7 +9988,7 @@ public:
 
     static void g_get_name(pfc::string_base& out) {
         if (ui_uses_english()) {
-            out = "R128 Loudness Normalizer";
+            out = "R128 Real-time Loudness Normalizer";
         }
         else {
             out = "R128 \xE9\x9F\xB3\xE9\x87\x8F"
@@ -12823,7 +13688,7 @@ public:
                 ),
                 ui_text(
                     L"R128 音量ノーマライザー",
-                    L"R128 Loudness Normalizer"
+                    L"R128 Real-time Loudness Normalizer"
                 ),
                 MB_OK | MB_ICONWARNING
             );
@@ -12908,12 +13773,12 @@ void show_r128_settings_from_main_menu() {
                 L"追加されていません。\n\n"
                 L"Playback → DSP Managerで追加してから、"
                 L"もう一度このメニューを開いてください。",
-                L"R128 Loudness Normalizer is not in the current DSP chain.\n\n"
+                L"R128 Real-time Loudness Normalizer is not in the current DSP chain.\n\n"
                 L"Add it in Playback > DSP Manager, then open this command again."
             ),
             ui_text(
                 L"R128 音量ノーマライザー",
-                L"R128 Loudness Normalizer"
+                L"R128 Real-time Loudness Normalizer"
             ),
             MB_OK | MB_ICONINFORMATION
         );
@@ -12928,13 +13793,13 @@ void show_r128_settings_from_main_menu() {
                 L"複数登録されています。\n\n"
                 L"誤った設定を変更しないため、DSP Managerから"
                 L"対象を選んで設定してください。",
-                L"More than one R128 Loudness Normalizer is present "
+                L"More than one R128 Real-time Loudness Normalizer is present "
                 L"in the current DSP chain.\n\n"
                 L"Open DSP Manager and select the instance you want to configure."
             ),
             ui_text(
                 L"R128 音量ノーマライザー",
-                L"R128 Loudness Normalizer"
+                L"R128 Real-time Loudness Normalizer"
             ),
             MB_OK | MB_ICONWARNING
         );
@@ -12981,7 +13846,7 @@ void show_r128_settings_from_main_menu() {
             ),
             ui_text(
                 L"R128 音量ノーマライザー",
-                L"R128 Loudness Normalizer"
+                L"R128 Real-time Loudness Normalizer"
             ),
             MB_OK | MB_ICONERROR
         );
@@ -13019,7 +13884,7 @@ public:
         }
 
         if (ui_uses_english()) {
-            out = "R128 Loudness Normalizer Settings...";
+            out = "R128 Real-time Loudness Normalizer Settings...";
         }
         else {
             out =
@@ -13041,7 +13906,7 @@ public:
 
         if (ui_uses_english()) {
             out =
-                "Opens the R128 Loudness Normalizer settings "
+                "Opens the R128 Real-time Loudness Normalizer settings "
                 "dialog directly.";
         }
         else {
