@@ -1,10 +1,35 @@
-R128 Real-time Loudness Normalizer v1.11.0
+﻿R128 Real-time Loudness Normalizer v1.12.0
+
+v1.12.0 adds an independent processing monitor.
+Repairs Compare (hold) input detection for mouse and Space-key holds.
+Release, cancellation and focus/capture loss return to processed audio.
+Playback > R128 Processing Monitor opens an independent window updated about every
+100 ms. It shows input/output 3-second loudness, normalization gain,
+approximate output True Peak, limiter reduction, automatic-protection
+reduction and Adaptive strength. Position, visibility and Always on Top
+are retained. Language and light/dark mode follow the existing settings.
+Monitor requires foobar2000 2.1+. Existing audio still supports 2.0.
+Conversion DSP values are never displayed in this monitor.
+Seven label/value/bar rows follow Sonic Refiner v0.9.0's compact layout.
+Matches its monitor width, font and bar position/width, keeping seven rows.
+Right-click the monitor to toggle Always on Top.
+
+MONITOR GUIDE
+Right-click > How to read the monitor... opens the built-in glossary at the
+monitor guide. Four entries explain the seven values, units/bars, display
+states, and reading the monitor with DSP order. MONITOR_GUIDE.md and the
+packaged GLOSSARY.txt / GLOSSARY_EN.txt contain the same explanations.
 
 For foobar2000 2.x / Windows x64
 
+Monitor implementation tested on foobar2000 v2.26 with one 1920 x 1080
+display at 100% scaling, including 30 minutes of playback reported without
+abnormalities. Multiple monitors, mixed DPI and older players are unverified.
+True Peak is approximate; accuracy against an independent meter is unverified.
+
 INSTALLATION
 
-1. Open foo_r128_normalizer_v1.11.0.fb2k-component.
+1. Open foo_r128_normalizer_v1.12.0.fb2k-component.
 2. Follow the foobar2000 installation prompt.
 3. Restart foobar2000.
 
@@ -82,7 +107,7 @@ IP addresses.
 
 COMPATIBILITY
 
-v1.11.0 retains preset format v7, existing DSP and menu GUIDs, built-in preset
+v1.12.0 retains preset format v7, existing DSP and menu GUIDs, built-in preset
 values, audio-processing thresholds, and the 6 dB automatic-attenuation limit.
 User-preset and history storage are separate from DSP presets.
 

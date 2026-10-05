@@ -2,13 +2,26 @@
 
 DECLARE_COMPONENT_VERSION(
     "R128 Real-time Loudness Normalizer",
-    "1.11.0",
+    "1.12.0",
     "R128-based real-time loudness normalizer for foobar2000.\n"
     "foobar2000用のR128ベース・リアルタイム音量ノーマライザーです。\n"
     "\n"
     "Author: Maximum\n"
     "Copyright (c) 2026 Maximum\n"
     "License: MIT License\n"
+    "\n"
+    "v1.12.0 adds an independent Playback > R128 Processing Monitor.\n"
+    "The monitor requires foobar2000 2.1 or newer; audio processing remains\n"
+    "compatible with 2.0. It shows playback-only input/output Short-term\n"
+    "loudness, normalization gain, approximate output True Peak, limiter and automatic\n"
+    "protection reduction, and Adaptive strength, refreshing about every\n"
+    "100 ms. Position, visibility, Always on Top, and language are retained.\n"
+    "Existing audio math, preset format v7 and built-in presets are unchanged.\n"
+    "\n"
+    "v1.12.0では、Playbackメニューから開ける独立した補正モニターを\n"
+    "追加しました。モニターはfoobar2000 2.1以降対応です。\n"
+    "約100ms更新、位置・開閉状態保存、常に最前面、日英表示に対応します。\n"
+    "音声計算、設定形式v7、既存7プリセットは変更していません。\n"
     "\n"
     "v1.11.0 adds privacy-safe export and import for user presets.\n"
     "The selected preset or all presets can be written to one .r128preset\n"

@@ -1,4 +1,5 @@
 ﻿#include "stdafx.h"
+#include "r128_monitor_state.h"
 
 namespace {
 
@@ -4886,7 +4887,7 @@ std::wstring build_diagnostic_report() {
     swprintf_s(
         report,
         ui_text(
-        L"R128 音量ノーマライザー 1.11.0\r\n"
+        L"R128 音量ノーマライザー 1.12.0\r\n"
         L"再生状態: %s\r\n"
         L"補正状態: %s\r\n"
         L"補正ゲイン固定: %s\r\n"
@@ -4943,7 +4944,7 @@ std::wstring build_diagnostic_report() {
         L"処理評価: %s\r\n"
         L"サンプルレート: %u Hz\r\n"
         L"推定CPU負荷: %.2f %%\r\n",
-        L"R128 Real-time Loudness Normalizer 1.11.0\r\n"
+        L"R128 Real-time Loudness Normalizer 1.12.0\r\n"
         L"Playback state: %s\r\n"
         L"Normalization state: %s\r\n"
         L"Gain lock: %s\r\n"
@@ -5955,7 +5956,81 @@ constexpr glossary_entry kGlossaryEntries[] = {
         L"渡された場合に、そのサンプルを安全な値へ置き換えます。\r\n\r\n"
         L"通常の有限な音声には作用しません。"
         L"作動回数は診断コピーで確認できます。"
+    },
+    // BEGIN R128 monitor glossary JA
+    {
+        L"補正モニター：7項目の意味",
+        L"上から順に、次の値を表示します。約100ms更新です。\r\n"
+        L"\r\n"
+        L"1. 入力 3秒（LUFS）\r\n"
+        L"このDSPへ入った音の直近約3秒のラウドネスです。前段DSPの処理を含みます。ファイル全体の平均ではありません。\r\n"
+        L"\r\n"
+        L"2. ゲイン（dB）\r\n"
+        L"現在のR128ノーマライズによる補正ゲインです。＋は増幅、－は減衰、0は補正なしです。リミッター、自動保護、追加処理を合算した最終ゲインではありません。\r\n"
+        L"\r\n"
+        L"3. 出力 3秒（LUFS）\r\n"
+        L"このDSPが出力した音の直近約3秒のラウドネスです。後段DSPやプレーヤーの音量操作は含みません。入力との比較に使います。\r\n"
+        L"\r\n"
+        L"4. True Peak（dBTP）\r\n"
+        L"このDSPの出力ピークの近似値です。4倍補間・17タップで推定し、最近の表示区間の最大値を表示します。曲全体の最大値ではありません。0 dBTPはフルスケールの基準です。表示更新が遅れた場合、集計区間は長くなります。\r\n"
+        L"\r\n"
+        L"5. リミッター（dB）\r\n"
+        L"現在リミッターが抑えている量です。正の数値で表示します。例：2 dBは2 dBの減衰、0は減衰なしです。トラック最大値ではありません。\r\n"
+        L"\r\n"
+        L"6. 自動保護（dB）\r\n"
+        L"過度なピーク、リミッター、クリップ等を受け、自動保護が追加した現在の減衰量です。正の数値で表示し、0は追加減衰なしです。リミッターとは別の値です。詳細は診断・履歴を確認してください。\r\n"
+        L"\r\n"
+        L"7. 適応強度（%／OFF）\r\n"
+        L"Adaptiveが自動調整する、モダン処理の現在の実効強度です。音量の増加率や全R128処理の強さではありません。50%は音量が50%増える意味ではありません。無効時はオフ／OFFです。固定モダン処理の有効・無効を示す値でもありません。"
+    },
+    {
+        L"補正モニター：単位とバー",
+        L"LUFS：聴感に近いラウドネスの単位です。－18 LUFSは－23 LUFSより大きい値です。\r\n"
+        L"\r\n"
+        L"dB：ゲインの変化量です。ゲイン欄は符号付き、リミッター・自動保護欄は正の減衰量です。\r\n"
+        L"\r\n"
+        L"dBTP：フルスケールを基準にしたTrue Peakです。0 dBTPを超える場合はピーク設定や処理強度を確認します。\r\n"
+        L"\r\n"
+        L"バーの範囲\r\n"
+        L"入力／出力：－60～0 LUFS\r\n"
+        L"ゲイン：絶対値0～24 dB（方向は数値の＋／－）\r\n"
+        L"True Peak：－60～＋3 dBTP\r\n"
+        L"リミッター／自動保護：0～12 dB\r\n"
+        L"適応強度：0～100%\r\n"
+        L"\r\n"
+        L"バーの両端を超える値は、バーだけ端で止まり、数値は実際の値を表示します。バーの満杯は音質・安全性の評価ではありません。目盛りは処理の上限や設定値を変更しません。"
+    },
+    {
+        L"補正モニター：表示状態",
+        L"動作中／Active：再生用のR128 DSPから現在の値を表示しています。\r\n"
+        L"\r\n"
+        L"解析中／静音・Analyzing / silence：測定待ちや静音でラウドネスを表示できない状態です。再生開始後、3秒ラウドネスには約3秒の測定が必要です。約100ms更新は測定時間とは別です。\r\n"
+        L"\r\n"
+        L"一時停止中／Paused・待機中／Waiting：一時停止や停止では現在値を隠します。再開後に更新されます。\r\n"
+        L"\r\n"
+        L"—：現在値を確定できません。DSP未登録、複数登録、表示対象の曖昧さ、古い測定値等でも表示されます。無効なバーは0になります。数値の0やOFFとは意味が異なります。\r\n"
+        L"\r\n"
+        L"原音比較中：入力だけを表示し、処理後の値は隠します。通常の処理へ戻ると出力測定も再開します。\r\n"
+        L"\r\n"
+        L"変換用DSPの値は表示しません。モニターはfoobar2000 2.1以降が必要です。言語は本コンポーネントの「自動（Windows）／日本語／English」に追従します。"
+    },
+    {
+        L"補正モニター：読み方とDSP順序",
+        L"まず状態を確認し、入力と出力の3秒ラウドネス、ゲインの符号、True Peak、2種類の減衰量、適応強度の順に見ます。出力値が常に目標値と一致するとは限りません。音源・測定窓・ゲイン上限・追加処理・保護等の影響を受けます。\r\n"
+        L"\r\n"
+        L"True Peakが高い状態や大きな減衰が続く場合は、診断・履歴も確認し、設定を見直す材料にしてください。瞬間値だけで音質の良し悪しは判断できません。\r\n"
+        L"\r\n"
+        L"例：Sonic Refiner → R128 → 出力\r\n"
+        L"R128の入力値はSonic Refiner処理後の音です。R128の出力値はR128処理後の音です。後段DSPやプレーヤー音量による変化は含みません。モニター間の数値は測定方法・表示区間が異なるため、単純に加算できません。\r\n"
+        L"\r\n"
+        L"開く：Playback → R128 補正モニター\r\n"
+        L"右クリック → モニターの見方...：この解説を開きます。\r\n"
+        L"右クリック → 常に手前に表示：最前面を切り替えます。\r\n"
+        L"位置・開閉状態・最前面設定を保存します。開いたままfoobar2000を終了すると次回起動時に再表示します。手動で閉じた場合は再表示しません。\r\n"
+        L"\r\n"
+        L"この窓は表示用です。開く・閉じる・解説を読む操作でDSPの音声設定を変更しません。"
     }
+    // END R128 monitor glossary JA
 };
 
 constexpr glossary_entry kGlossaryEntriesEnglish[] = {
@@ -6144,13 +6219,91 @@ constexpr glossary_entry kGlossaryEntriesEnglish[] = {
         L"Replaces NaN, infinite, or extreme samples received from a decoder "
         L"or earlier DSP with safe values. Normal finite audio is unaffected; "
         L"the activation count appears in the copied diagnostics."
+    },
+    // BEGIN R128 monitor glossary EN
+    {
+        L"Monitor: the seven values",
+        L"From top to bottom, the monitor shows these values. It refreshes about every 100 ms.\r\n"
+        L"\r\n"
+        L"1. Input 3 s (LUFS)\r\n"
+        L"Short-term loudness of audio entering this DSP over approximately three seconds. It includes earlier DSP processing and is not a whole-file average.\r\n"
+        L"\r\n"
+        L"2. Gain (dB)\r\n"
+        L"Current R128 normalization gain. Positive means amplification, negative means attenuation, and zero means no gain change. This is not the combined final gain of normalization, limiting, protection and additional processing.\r\n"
+        L"\r\n"
+        L"3. Output 3 s (LUFS)\r\n"
+        L"Short-term loudness at this DSP output over approximately three seconds. Later DSPs and player volume changes are excluded. Compare it with the input value.\r\n"
+        L"\r\n"
+        L"4. True Peak (dBTP)\r\n"
+        L"Approximate peak at this DSP output, estimated with 4x interpolation and 17 taps. Shows the maximum over the recent display interval, not the whole-track maximum. Zero dBTP is the full-scale reference. Scheduling delays can make the collection interval longer.\r\n"
+        L"\r\n"
+        L"5. Limiter (dB)\r\n"
+        L"Current limiter attenuation, shown as a positive amount. For example, 2 dB means 2 dB of reduction; zero means none. This is not the track maximum.\r\n"
+        L"\r\n"
+        L"6. Protect. (dB)\r\n"
+        L"Current additional attenuation applied by automatic protection in response to excessive peaks, limiting, clipping or related conditions. It is a positive amount; zero means no additional attenuation. It is separate from the limiter value. See diagnostics and history for details.\r\n"
+        L"\r\n"
+        L"7. Adaptive (% / OFF)\r\n"
+        L"Current effective Modern Processing strength adjusted by Adaptive. It is not a volume increase percentage or the strength of all R128 processing. 50% does not mean 50% louder. OFF means Adaptive is inactive, not that fixed Modern Processing is necessarily disabled."
+    },
+    {
+        L"Monitor: units and bars",
+        L"LUFS measures loudness with perceptual weighting. -18 LUFS is louder than -23 LUFS.\r\n"
+        L"\r\n"
+        L"dB measures gain change. Gain is signed; Limiter and Protect. show positive attenuation amounts.\r\n"
+        L"\r\n"
+        L"dBTP measures True Peak relative to full scale. Values above 0 dBTP warrant checking peak settings and processing strength.\r\n"
+        L"\r\n"
+        L"Bar ranges\r\n"
+        L"Input / Output: -60 to 0 LUFS\r\n"
+        L"Gain: magnitude 0 to 24 dB (direction is in the numeric sign)\r\n"
+        L"True Peak: -60 to +3 dBTP\r\n"
+        L"Limiter / Protect.: 0 to 12 dB\r\n"
+        L"Adaptive: 0 to 100%\r\n"
+        L"\r\n"
+        L"Bars clamp at their endpoints; numbers retain the actual values. A full bar is not a quality or safety rating. Display ranges do not change processing limits or settings."
+    },
+    {
+        L"Monitor: display states",
+        L"Active: current values are available from the playback R128 DSP.\r\n"
+        L"\r\n"
+        L"Analyzing / silence: loudness is unavailable while measuring or during silence. Three-second loudness needs approximately three seconds of measured audio after playback starts. The 100 ms refresh interval is separate from the measurement window.\r\n"
+        L"\r\n"
+        L"Paused / Waiting: current values are hidden during pause or stop and update after playback resumes.\r\n"
+        L"\r\n"
+        L"An em dash means no reliable current value. It can also indicate an absent DSP, multiple instances, an ambiguous source or stale data. Unavailable bars clear to zero. An em dash differs from a numeric zero or OFF.\r\n"
+        L"\r\n"
+        L"Original comparison: only input is shown; processed values are hidden. Output measurement resumes on return to normal processing.\r\n"
+        L"\r\n"
+        L"Conversion DSP values are excluded. The monitor requires foobar2000 2.1+. Language follows this component's Automatic (Windows), Japanese or English selection."
+    },
+    {
+        L"Monitor: reading it and DSP order",
+        L"Check the state first, then input/output three-second loudness, the gain sign, True Peak, the two attenuation values and Adaptive strength. Output need not always equal the target: source audio, measurement windows, gain limits, additional processing and protection all affect it.\r\n"
+        L"\r\n"
+        L"If high True Peak or substantial attenuation persists, consult diagnostics and history to review settings. Momentary readings alone cannot rate sound quality.\r\n"
+        L"\r\n"
+        L"Example: Sonic Refiner > R128 > Output\r\n"
+        L"R128 input is audio after Sonic Refiner; R128 output is audio after R128. Later DSPs and player volume changes are excluded. Measurements from the two monitors use different methods and intervals and cannot simply be added.\r\n"
+        L"\r\n"
+        L"Open: Playback > R128 Processing Monitor\r\n"
+        L"Right-click > How to read the monitor... opens this guide.\r\n"
+        L"Right-click > Always on Top toggles topmost display.\r\n"
+        L"Position, visibility and topmost state are saved. Leaving the monitor open when quitting foobar2000 restores it on next startup. Closing it manually prevents that restoration.\r\n"
+        L"\r\n"
+        L"This is a display window. Opening, closing or reading its help does not change DSP audio settings."
     }
+    // END R128 monitor glossary EN
 };
 
 static_assert(
     std::size(kGlossaryEntriesEnglish) == std::size(kGlossaryEntries),
     "Japanese and English glossary entry counts must match"
 );
+
+// BEGIN R128 monitor glossary index
+constexpr size_t kMonitorGlossaryIndex = std::size(kGlossaryEntries) - 4;
+// END R128 monitor glossary index
 
 struct tooltip_entry {
     int control_id;
@@ -7127,7 +7280,7 @@ bool confirm_restore_defaults(HWND owner) {
 }
 
 constexpr wchar_t kLicenseCreditsText[] =
-    L"R128 リアルタイム音量ノーマライザー 1.11.0\r\n"
+    L"R128 リアルタイム音量ノーマライザー 1.12.0\r\n"
     L"\r\n"
     L"作者：Maximum\r\n"
     L"Copyright (c) 2026 Maximum\r\n"
@@ -7144,7 +7297,7 @@ constexpr wchar_t kLicenseCreditsText[] =
     L"THIRD-PARTY-NOTICES.txtをご覧ください。";
 
 constexpr wchar_t kLicenseCreditsTextEnglish[] =
-    L"R128 Real-time Loudness Normalizer 1.11.0\r\n"
+    L"R128 Real-time Loudness Normalizer 1.12.0\r\n"
     L"\r\n"
     L"Author: Maximum\r\n"
     L"Copyright (c) 2026 Maximum\r\n"
@@ -7381,7 +7534,7 @@ INT_PTR CALLBACK glossary_dialog_proc(
     HWND wnd,
     UINT message,
     WPARAM wp,
-    LPARAM
+    LPARAM initial_selection
 ) {
     auto* dark_mode = reinterpret_cast<fb2k::CCoreDarkModeHooks*>(
         GetWindowLongPtrW(wnd, GWLP_USERDATA)
@@ -7432,11 +7585,17 @@ INT_PTR CALLBACK glossary_dialog_proc(
             );
         }
 
+        // BEGIN R128 monitor glossary selection
+        const WPARAM selection = initial_selection >= 0 &&
+            static_cast<size_t>(initial_selection) < std::size(entries)
+            ? static_cast<WPARAM>(initial_selection) : 0;
+        // END R128 monitor glossary selection
+
         SendDlgItemMessageW(
             wnd,
             IDC_GLOSSARY_LIST,
             LB_SETCURSEL,
-            0,
+            selection,
             0
         );
         update_glossary_description(wnd);
@@ -9212,6 +9371,70 @@ bool apply_dialog_settings(
     return true;
 }
 
+// BEGIN compare hold input repair
+// BN_HILITE / BN_UNHILITE are legacy notifications. Observe the native
+// push-button state after its default handling, retaining the existing
+// comparison command handler and audio path.
+LRESULT CALLBACK original_compare_button_proc(HWND button, UINT message,
+    WPARAM wp, LPARAM lp, UINT_PTR subclass_id, DWORD_PTR) {
+    const HWND parent = GetParent(button);
+    if (message == WM_NCDESTROY) {
+        DWORD_PTR was_pressed = 0;
+        GetWindowSubclass(button, original_compare_button_proc, subclass_id, &was_pressed);
+        RemoveWindowSubclass(button, original_compare_button_proc, subclass_id);
+        if (was_pressed && IsWindow(parent)) {
+            SendMessageW(parent, WM_COMMAND, MAKEWPARAM(IDC_ORIGINAL_COMPARE, BN_UNHILITE),
+                reinterpret_cast<LPARAM>(button));
+        }
+        return DefSubclassProc(button, message, wp, lp);
+    }
+
+    const LRESULT result = DefSubclassProc(button, message, wp, lp);
+    if (!IsWindow(button) || !IsWindow(parent)) return result;
+    bool update = false;
+    bool cancel = false;
+    switch (message) {
+    case WM_LBUTTONDOWN:
+    case WM_LBUTTONDBLCLK:
+    case WM_LBUTTONUP:
+    case WM_MOUSEMOVE:
+    case WM_KEYDOWN:
+    case WM_KEYUP:
+    case BM_SETSTATE:
+        update = true;
+        break;
+    case WM_CAPTURECHANGED:
+    case WM_CANCELMODE:
+    case WM_KILLFOCUS:
+    case WM_ENABLE:
+        update = true;
+        cancel = true;
+        break;
+    }
+    if (update) {
+        // Clear the native highlight on cancellation, so a later mouse move
+        // cannot reactivate a cancelled comparison from an old pushed state.
+        if (cancel) {
+            if (GetCapture() == button) ReleaseCapture();
+            SendMessageW(button, BM_SETSTATE, FALSE, 0);
+        }
+        DWORD_PTR was_pressed = 0;
+        if (!GetWindowSubclass(button, original_compare_button_proc, subclass_id, &was_pressed))
+            return result;
+        const bool pressed = !cancel && IsWindowEnabled(button) && IsWindowEnabled(parent) &&
+            (SendMessageW(button, BM_GETSTATE, 0, 0) & BST_PUSHED) != 0;
+        if (pressed != (was_pressed != 0)) {
+            // Store before notifying the parent: native messages can reenter.
+            SetWindowSubclass(button, original_compare_button_proc, subclass_id, pressed ? 1 : 0);
+            SendMessageW(parent, WM_COMMAND,
+                MAKEWPARAM(IDC_ORIGINAL_COMPARE, pressed ? BN_HILITE : BN_UNHILITE),
+                reinterpret_cast<LPARAM>(button));
+        }
+    }
+    return result;
+}
+// END compare hold input repair
+
 INT_PTR CALLBACK config_dialog_proc(HWND wnd, UINT message, WPARAM wp, LPARAM lp) {
     auto* context = reinterpret_cast<dialog_context*>(
         GetWindowLongPtrW(wnd, GWLP_USERDATA)
@@ -9239,6 +9462,10 @@ INT_PTR CALLBACK config_dialog_proc(HWND wnd, UINT message, WPARAM wp, LPARAM lp
         }
 
         g_original_compare_request.store(0, std::memory_order_relaxed);
+        // BEGIN compare hold input install
+        SetWindowSubclass(GetDlgItem(wnd, IDC_ORIGINAL_COMPARE),
+            original_compare_button_proc, 1, 0);
+        // END compare hold input install
         setup_config_tabs(wnd);
         fit_dialog_to_monitor_work_area(
             wnd,
@@ -9444,6 +9671,13 @@ INT_PTR CALLBACK config_dialog_proc(HWND wnd, UINT message, WPARAM wp, LPARAM lp
         show_context_help(wnd, nullptr);
         return TRUE;
 
+    // BEGIN compare hold input deactivate
+    case WM_ACTIVATE:
+        if (LOWORD(wp) == WA_INACTIVE) {
+            SendDlgItemMessageW(wnd, IDC_ORIGINAL_COMPARE, WM_CANCELMODE, 0, 0);
+        }
+        break;
+    // END compare hold input deactivate
     case WM_TIMER:
         if (wp == kDiagnosticsTimerId) {
             update_tooltip_theme(context, false);
@@ -9936,6 +10170,15 @@ double sinc(double value) {
 
 class dsp_r128_normalizer : public dsp_impl_base {
 public:
+    dsp_r128_normalizer(const dsp_preset& preset, unsigned flags)
+        : dsp_r128_normalizer(preset) {
+        // Available on fb2k 2.1+. Legacy/unclassified and conversion DSPs
+        // retain exactly the original audio path but never publish a monitor.
+        if ((flags & dsp_entry::flag_playback) != 0 &&
+            (flags & dsp_entry::flag_conversion) == 0) {
+            m_monitor.enable_for_playback();
+        }
+    }
     explicit dsp_r128_normalizer(const dsp_preset& preset)
         : m_settings(parse_preset(preset)) {
         m_last_measurement_reset_request =
@@ -10127,6 +10370,7 @@ public:
         const bool audition_bypass = audition_compare_mode != 0;
         update_compare_request_state(audition_compare_mode);
 
+        m_monitor.begin_chunk();
         double chunk_true_peak = 0.0;
         double last_applied_gain_db = m_current_gain_db;
         m_modern_clipper_reduction_db = 0.0;
@@ -10400,6 +10644,18 @@ public:
             sample_rate
         );
         publish_diagnostics(chunk_true_peak, last_applied_gain_db);
+        r128_monitor::snapshot monitor_value;
+        monitor_value.tick = static_cast<unsigned long long>(GetTickCount64());
+        monitor_value.input = m_short_term_lufs;
+        monitor_value.output = m_output_short_term_lufs;
+        monitor_value.gain = m_current_gain_db;
+        monitor_value.limiter = std::max(0.0, -m_limiter_gain_db);
+        monitor_value.safety = std::max(0.0, -m_safety_reduction_db);
+        monitor_value.strength = m_effective_modern_strength_percent;
+        monitor_value.adaptive = m_settings.enable_adaptive_master &&
+            m_settings.enable_modern_boost;
+        monitor_value.comparing = audition_bypass;
+        m_monitor.publish(monitor_value);
 
         if (output.empty()) {
             return false;
@@ -11796,6 +12052,7 @@ private:
         }
 
         if (!bypass_frame && transition_gain >= 0.999) {
+            m_monitor.observe_output_peak(output_frame_true_peak);
             m_current_output_true_peak_linear = output_frame_true_peak;
             m_track_max_output_true_peak_linear = std::max(
                 m_track_max_output_true_peak_linear,
@@ -13001,6 +13258,7 @@ private:
     }
 
     void reset_measurement_state_only() {
+        m_monitor.invalidate();
         for (auto& filter : m_filters) {
             filter.pre_filter.reset();
             filter.rlb_filter.reset();
@@ -13189,6 +13447,7 @@ private:
     }
 
     void reset_runtime_state() {
+        m_monitor.invalidate();
         for (auto& filter : m_filters) {
             filter.pre_filter.reset();
             filter.rlb_filter.reset();
@@ -13509,6 +13768,7 @@ private:
         );
     }
 
+    r128_monitor::publisher m_monitor;
     r128_settings m_settings;
 
     unsigned m_sample_rate = 0;
@@ -13639,7 +13899,23 @@ private:
     unsigned long long m_last_history_reset_request = 0;
 };
 
-static dsp_factory_t<dsp_r128_normalizer> g_dsp_r128_normalizer_factory;
+// Keep the legacy popup and preset behavior. The v4 instantiation extension
+// only supplies playback/conversion identity; it does not alter audio math.
+class r128_dsp_entry : public dsp_entry_v2_impl_t<
+    dsp_r128_normalizer, dsp_entry_v4> {
+public:
+    dsp::ptr instantiate_v4(const dsp_preset& preset, unsigned flags) override {
+        return new service_impl_t<dsp_r128_normalizer>(preset, flags);
+    }
+    void get_display_name(const dsp_preset&, pfc::string_base& out) override {
+        dsp_r128_normalizer::g_get_name(out);
+    }
+    service_ptr show_config_popup_v3(
+        fb2k::hwnd_t, dsp_preset_edit_callback_v2::ptr) override {
+        throw pfc::exception_not_implemented();
+    }
+};
+static service_factory_single_t<r128_dsp_entry> g_dsp_r128_normalizer_factory;
 
 namespace {
 
@@ -13946,3 +14222,5 @@ static mainmenu_commands_factory_t<
 > g_mainmenu_commands_r128_settings_factory;
 
 } // namespace
+
+#include "r128_monitor_ui.h"

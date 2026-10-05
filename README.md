@@ -1,8 +1,44 @@
 # R128 Real-time Loudness Normalizer
 
+Version **v1.12.0**. Monitor: foobar2000 2.1+ / Windows x64.
+Existing audio processing retains foobar2000 2.0 compatibility.
+モニターはfoobar2000 2.1以降／Windows x64対応です。従来の音声処理は2.0対応を維持します。
+
 [English](#english) | [日本語](#日本語)
 
 ## English
+
+### New in v1.12.0: R128 Processing Monitor
+
+Repairs the hold-to-compare button's input detection. Press and hold the
+button with the mouse, or hold Space while it has focus, to compare. Release or
+cancel the hold to return to processed audio.
+
+Open `Playback > R128 Processing Monitor` for a small independent window with an
+approximately 100 ms refresh. It shows input/output 3-second loudness,
+normalization gain, output True Peak (approximate), limiter reduction,
+automatic-protection reduction and Adaptive strength. Position, visibility
+and Always on Top are saved. Display language and light/dark theme follow
+the existing settings. Conversion DSP values are never shown.
+
+Matches Sonic Refiner v0.9.0's monitor width, font and bar position/width,
+retaining seven rows and numeric units.
+Right-click the monitor to toggle **Always on Top**. Bars use scales appropriate
+to each unit; the gain bar shows magnitude and the numeric sign shows direction.
+
+Includes a [R128-specific monitor guide](MONITOR_GUIDE.md) in English and Japanese.
+Right-click the monitor and choose **How to read the monitor...** to open the
+same explanations in the built-in glossary. Four entries explain the seven
+values, units and bars, display states, and reading the monitor with DSP order.
+The packaged `GLOSSARY_EN.txt` and `GLOSSARY.txt` also contain these explanations.
+
+The monitor implementation was tested on foobar2000 v2.26 with one
+1920 x 1080 display at 100% scaling, including 30 minutes of playback reported
+without abnormalities. Multiple-monitor/mixed-DPI setups, older player
+versions and accuracy against an independent meter have not been verified.
+True Peak is an approximation. See [MONITOR_DEV_NOTES.md](MONITOR_DEV_NOTES.md)
+for the test record and remaining scope. Build instructions are in
+[BUILDING.md](BUILDING.md).
 
 **R128 Real-time Loudness Normalizer** is an R128-based real-time loudness
 normalizer for foobar2000 2.x on Windows x64.
@@ -17,13 +53,13 @@ In addition to standard loudness normalization, optional Modern Processing,
 
 Download the following file from GitHub Releases:
 
-`foo_r128_normalizer_v1.11.0.fb2k-component`
+`foo_r128_normalizer_v1.12.0.fb2k-component`
 
 Visual Studio and the foobar2000 SDK are not required for normal use.
 
 ### Installation
 
-1. Download `foo_r128_normalizer_v1.11.0.fb2k-component`.
+1. Download `foo_r128_normalizer_v1.12.0.fb2k-component`.
 2. Open the file and follow the foobar2000 installation prompt.
 3. Restart foobar2000.
 4. Add **R128 Real-time Loudness Normalizer** to the active DSP chain in DSP Manager.
@@ -201,6 +237,35 @@ concept of `EBU R128 Normalizer by mudlord`. See
 
 ## 日本語
 
+### v1.12.0の追加機能：R128 補正モニター
+
+［比較（押している間）］の押下検知を修正しました。
+マウスで押し続けるか、ボタンにフォーカスを合わせてSpaceを押し続けると比較します。
+解放・取消時に処理音へ戻ります。
+
+`Playback → R128 補正モニター`から独立した小型ウィンドウを開けます。
+約100ms更新で、入力／出力の3秒ラウドネス、補正ゲイン、出力True Peak（近似）、
+リミッター減衰、自動保護減衰、Adaptive強度を表示します。
+位置・開閉状態・常に最前面を保存し、既存の日英言語設定とライト／ダークへ追従します。
+変換用DSPの値は表示しません。モニターはfoobar2000 2.1以降対応です。
+
+Sonic Refiner v0.9.0の補正モニターと横幅・フォントに加え、
+バーの開始位置・横幅・高さも統一しました。
+7項目の高さを維持し、項目名を短くしています。
+右クリックで［常に手前に表示］を切り替えます。横バーは項目ごとの目盛りで表示し、
+補正ゲインのバーは量の大きさ、数値の＋／－は増幅／減衰を示します。
+
+[R128専用のモニター解説](MONITOR_GUIDE.md)を英日で収録しています。
+右クリック→［モニターの見方...］で、既存の用語集内の解説を直接開けます。
+「7項目の意味」「単位とバー」「表示状態」「読み方とDSP順序」の4項目です。
+同じ説明を配布用の`GLOSSARY.txt`／`GLOSSARY_EN.txt`にも収録しています。
+
+モニターの実装はfoobar2000 v2.26、1画面、1920 x 1080、表示倍率100%で確認しました。
+30分の連続再生は異常なしとの報告を受けています。複数画面・混在DPI、旧バージョン、
+独立した測定器との精度比較は未確認です。True Peakは近似値です。
+検証記録と未確認範囲は[MONITOR_DEV_NOTES.md](MONITOR_DEV_NOTES.md)、
+ビルド手順は[BUILDING.md](BUILDING.md)を参照してください。
+
 **R128 リアルタイム音量ノーマライザー**は、foobar2000 2.x
 （Windows x64）向けのR128ベース・リアルタイム音量ノーマライザーです。
 
@@ -212,13 +277,13 @@ concept of `EBU R128 Normalizer by mudlord`. See
 
 GitHub Releasesから、次のファイルをダウンロードしてください。
 
-`foo_r128_normalizer_v1.11.0.fb2k-component`
+`foo_r128_normalizer_v1.12.0.fb2k-component`
 
 一般利用では、Visual Studioやfoobar2000 SDKは必要ありません。
 
 ### インストール
 
-1. `foo_r128_normalizer_v1.11.0.fb2k-component`をダウンロードします。
+1. `foo_r128_normalizer_v1.12.0.fb2k-component`をダウンロードします。
 2. ファイルを開き、foobar2000の確認画面に従ってインストールします。
 3. foobar2000を再起動します。
 4. DSP Managerで「R128 音量ノーマライザー」を使用中のDSPへ追加します。

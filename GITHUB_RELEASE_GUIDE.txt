@@ -1,34 +1,35 @@
-GitHub公開手順
-R128 Real-time Loudness Normalizer v1.11.0
-（R128 リアルタイム音量ノーマライザー）
+R128 Real-time Loudness Normalizer v1.12.0
+GitHub公開準備
 
-推奨Release:
-・Tag: v1.11.0
-・Title: R128 Real-time Loudness Normalizer v1.11.0
+この文書は公開時の手順です。ローカル準備だけでは正式公開完了になりません。
+Maximumの「OK」を待ち、1工程ずつ進めます。
+現在の正式版v1.11.0のタグ・Release・Assetsは保持します。
 
-アップロードするRelease Assets:
-1. foo_r128_normalizer_v1.11.0.fb2k-component
-2. SHA256SUMS.txt
+1. 最終ビルドと確認
+・v1.12.0へ更新・ビルド・梱包.cmdを実行
+・build_validation.txtのEmbedded version: 1.12.0、x64を確認
+・foo_r128_normalizer_v1.12.0.fb2k-componentを上書き導入して再起動
+・Componentsの版数、Playbackからのモニター表示、再生・比較を短く確認
+・SHA256SUMS.txtの対象ファイル名とハッシュを確認
 
-任意:
-・CHANGELOG.txt
+2. mainへのソース反映
+・v1.12.0のソース、文書、scripts、CMDを反映
+・ビルドログ、配布物、SDK、バックアップ、Git管理情報はソースへ含めない
+・旧v1.11.0のCMD 2件とscripts/build_v1110.ps1、create_v1110_package.ps1を削除
+・dev版のCMD・scriptsを正式版ソースへ混在させない
+・mainと最終ビルドに使ったソースが一致することを確認
 
-一般利用者向けの主配布物は、
-foo_r128_normalizer_v1.11.0.fb2k-component
-そのものです。
+3. Release
+・タグ: v1.12.0（確認したmainのコミットを対象にする）
+・タイトル: R128 Real-time Loudness Normalizer v1.12.0
+・説明: RELEASE_NOTES.mdの英日本文
+・正式Assets:
+  foo_r128_normalizer_v1.12.0.fb2k-component
+  SHA256SUMS.txt
+・実機確認済み範囲と未確認範囲を説明文から省略しない
+・公開後、タイトル・タグ・Assets・Latestを確認
 
-ZIPへ入れて配布すると、
-展開してからインストールする余分な手順が増えるため、
-GitHub Releasesでは.fb2k-componentを直接アップロードします。
-
-リポジトリ:
-・README.md → 一般利用者向け
-・BUILDING.md → 開発者向け
-・RELEASE_NOTES.md → Release本文のひな型
-・README.txt／QUICK_START.txt → コンポーネント同梱用
-
-GitHubが自動生成するSource code (zip)/(tar.gz)は、
-配布用コンポーネントではありません。
-Release本文で
-「一般利用者はfoo_r128_normalizer_v1.11.0.fb2k-componentをダウンロード」
-と明記してください。
+4. Source of Truth
+・公開後にmain、タグ、Release、正式Assets、ハッシュを確認
+・確認した情報からv1.12.0のSource of Truthを作成
+・公開確認まではv1.11.0のSource of Truthを正式基準として維持
