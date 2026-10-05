@@ -4,7 +4,7 @@ R128 Real-time Loudness Normalizer v1.11.0
 
 推奨Release:
 ・Tag: v1.11.0
-・Title: foo_r128_normalizer v1.11.0
+・Title: R128 Real-time Loudness Normalizer v1.11.0
 
 アップロードするRelease Assets:
 1. foo_r128_normalizer_v1.11.0.fb2k-component
