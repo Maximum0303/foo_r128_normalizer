@@ -37,9 +37,9 @@ Visual Studio and the foobar2000 SDK are not required for normal use.
   2.0 compatibility; runtime behavior on older players has not been verified.
 - Existing audio calculations, seven built-in presets, DSP format v7,
   existing GUIDs and user-preset format are retained.
-- Monitor implementation tested on foobar2000 v2.26, one 1920 x 1080 display
-  at 100% scaling. The user reported 30 minutes of playback without
-  abnormalities and approximately 4% CPU for the entire player process.
+- Monitor tested on foobar2000 v2.26 with one 1920 × 1080 display at 100% scaling.
+  No abnormalities observed during 30 minutes of continuous playback.
+  CPU usage for the entire foobar2000 process was approximately 4% during the test.
 - Multiple monitors/mixed DPI, accuracy against an independent meter and
   bit-for-bit output equivalence against v1.11.0 remain unverified.
 - True Peak is approximate and describes this DSP's output, excluding later
@@ -75,8 +75,8 @@ Visual Studio and the foobar2000 SDK are not required for normal use.
 - モニターはfoobar2000 2.1以降／Windows x64対応。従来の音声処理は2.0対応を維持。
   旧バージョンでの実機動作は未確認。
 - 音声計算、既存7プリセット、DSP設定形式v7、既存GUID、ユーザープリセット形式は維持。
-- モニター実装はfoobar2000 v2.26、1画面、1920 x 1080、表示倍率100%で確認。
-  本人から30分の連続再生は異常なし、foobar2000全体のCPU使用率は約4%との報告。
+- モニターはfoobar2000 v2.26、1画面、1920 × 1080、表示倍率100%の環境で動作確認済み。
+  30分の連続再生で異常なし。テスト時のfoobar2000全体のCPU使用率は約4%。
 - 複数画面・混在DPI、独立した測定器との精度比較、v1.11.0との出力完全一致は未確認。
 - True PeakはこのDSPの出力に対する近似値。後段DSPやプレーヤー音量は含まない。
   モニターを開閉しても音声設定は変更しない。
