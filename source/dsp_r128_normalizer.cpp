@@ -4887,7 +4887,7 @@ std::wstring build_diagnostic_report() {
     swprintf_s(
         report,
         ui_text(
-        L"R128 音量ノーマライザー 1.12.0\r\n"
+        L"R128 音量ノーマライザー 1.13.0\r\n"
         L"再生状態: %s\r\n"
         L"補正状態: %s\r\n"
         L"補正ゲイン固定: %s\r\n"
@@ -4944,7 +4944,7 @@ std::wstring build_diagnostic_report() {
         L"処理評価: %s\r\n"
         L"サンプルレート: %u Hz\r\n"
         L"推定CPU負荷: %.2f %%\r\n",
-        L"R128 Real-time Loudness Normalizer 1.12.0\r\n"
+        L"R128 Real-time Loudness Normalizer 1.13.0\r\n"
         L"Playback state: %s\r\n"
         L"Normalization state: %s\r\n"
         L"Gain lock: %s\r\n"
@@ -6026,7 +6026,8 @@ constexpr glossary_entry kGlossaryEntries[] = {
         L"開く：Playback → R128 補正モニター\r\n"
         L"右クリック → モニターの見方...：この解説を開きます。\r\n"
         L"右クリック → 常に手前に表示：最前面を切り替えます。\r\n"
-        L"位置・開閉状態・最前面設定を保存します。開いたままfoobar2000を終了すると次回起動時に再表示します。手動で閉じた場合は再表示しません。\r\n"
+        L"右クリック → foobar2000と一緒に最小化：初期値はオンです。オンなら本体の最小化・復元に連動します。オフなら本体を最小化しても表示と約100ms更新を継続します。常に手前に表示とは独立です。\r\n"
+        L"位置・開閉状態・最前面設定・最小化連動設定を保存します。開いたままfoobar2000を終了すると次回起動時に再表示します。手動で閉じた場合は本体の最小化・復元でも再表示しません。\r\n"
         L"\r\n"
         L"この窓は表示用です。開く・閉じる・解説を読む操作でDSPの音声設定を変更しません。"
     }
@@ -6289,7 +6290,8 @@ constexpr glossary_entry kGlossaryEntriesEnglish[] = {
         L"Open: Playback > R128 Processing Monitor\r\n"
         L"Right-click > How to read the monitor... opens this guide.\r\n"
         L"Right-click > Always on Top toggles topmost display.\r\n"
-        L"Position, visibility and topmost state are saved. Leaving the monitor open when quitting foobar2000 restores it on next startup. Closing it manually prevents that restoration.\r\n"
+        L"Right-click > Minimize with foobar2000 defaults to ON. ON follows the main window on minimize/restore. OFF keeps the monitor visible and updating about every 100 ms while playback continues. It is independent of Always on Top.\r\n"
+        L"Position, visibility, topmost state and Minimize with foobar2000 are saved. Leaving the monitor open when quitting foobar2000 restores it on next startup. A manually closed monitor is not reopened by main-window minimize/restore.\r\n"
         L"\r\n"
         L"This is a display window. Opening, closing or reading its help does not change DSP audio settings."
     }
@@ -7280,7 +7282,7 @@ bool confirm_restore_defaults(HWND owner) {
 }
 
 constexpr wchar_t kLicenseCreditsText[] =
-    L"R128 リアルタイム音量ノーマライザー 1.12.0\r\n"
+    L"R128 リアルタイム音量ノーマライザー 1.13.0\r\n"
     L"\r\n"
     L"作者：Maximum\r\n"
     L"Copyright (c) 2026 Maximum\r\n"
@@ -7297,7 +7299,7 @@ constexpr wchar_t kLicenseCreditsText[] =
     L"THIRD-PARTY-NOTICES.txtをご覧ください。";
 
 constexpr wchar_t kLicenseCreditsTextEnglish[] =
-    L"R128 Real-time Loudness Normalizer 1.12.0\r\n"
+    L"R128 Real-time Loudness Normalizer 1.13.0\r\n"
     L"\r\n"
     L"Author: Maximum\r\n"
     L"Copyright (c) 2026 Maximum\r\n"

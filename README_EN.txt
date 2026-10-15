@@ -1,4 +1,12 @@
-﻿R128 Real-time Loudness Normalizer v1.12.0
+﻿R128 Real-time Loudness Normalizer v1.13.0
+
+v1.13.0 adds the monitor minimize setting, matching Sonic Refiner v1.1.0.
+Right-click > Minimize with foobar2000 defaults to ON.
+ON follows main-window minimize/restore; OFF keeps the monitor visible and
+updating during playback. The option is saved independently of Always on Top.
+Manually closed monitors are not reopened by main-window minimize/restore.
+The feature follows the tested v1.13.0-dev.1 implementation. DSP audio/settings are unchanged.
+The environment and 30-minute results below refer to the previous v1.12.0 tests.
 
 v1.12.0 adds an independent processing monitor.
 Repairs Compare (hold) input detection for mouse and Space-key holds.
@@ -29,7 +37,7 @@ True Peak is approximate; accuracy against an independent meter is unverified.
 
 INSTALLATION
 
-1. Open foo_r128_normalizer_v1.12.0.fb2k-component.
+1. Open foo_r128_normalizer_v1.13.0.fb2k-component.
 2. Follow the foobar2000 installation prompt.
 3. Restart foobar2000.
 
@@ -107,7 +115,7 @@ IP addresses.
 
 COMPATIBILITY
 
-v1.12.0 retains preset format v7, existing DSP and menu GUIDs, built-in preset
+v1.13.0 retains preset format v7, existing DSP and menu GUIDs, built-in preset
 values, audio-processing thresholds, and the 6 dB automatic-attenuation limit.
 User-preset and history storage are separate from DSP presets.
 

@@ -1,4 +1,4 @@
-﻿R128 Real-time Loudness Normalizer v1.12.0
+﻿R128 Real-time Loudness Normalizer v1.13.0
 English Glossary
 
 Current processing state
@@ -175,6 +175,7 @@ R128 input is audio after Sonic Refiner; R128 output is audio after R128. Later 
 Open: Playback > R128 Processing Monitor
 Right-click > How to read the monitor... opens this guide.
 Right-click > Always on Top toggles topmost display.
-Position, visibility and topmost state are saved. Leaving the monitor open when quitting foobar2000 restores it on next startup. Closing it manually prevents that restoration.
+Right-click > Minimize with foobar2000 defaults to ON. ON follows main-window minimize/restore. OFF keeps the monitor visible and updating during playback. It is independent of Always on Top.
+Position, visibility, topmost state and Minimize with foobar2000 are saved. Leaving the monitor open when quitting foobar2000 restores it on next startup. A manually closed monitor is not reopened by main-window minimize/restore.
 
 This is a display window. Opening, closing or reading its help does not change DSP audio settings.

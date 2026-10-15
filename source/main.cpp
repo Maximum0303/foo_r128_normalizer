@@ -2,13 +2,20 @@
 
 DECLARE_COMPONENT_VERSION(
     "R128 Real-time Loudness Normalizer",
-    "1.12.0",
+    "1.13.0",
     "R128-based real-time loudness normalizer for foobar2000.\n"
     "foobar2000用のR128ベース・リアルタイム音量ノーマライザーです。\n"
     "\n"
     "Author: Maximum\n"
     "Copyright (c) 2026 Maximum\n"
     "License: MIT License\n"
+    "\n"
+    "v1.13.0 adds Minimize with foobar2000 to the monitor menu.\n"
+    "ON by default; OFF keeps the monitor visible and updating during playback.\n"
+    "The saved option is independent of Always on Top. Audio DSP is unchanged.\n"
+    "v1.13.0では補正モニターの最小化連動設定を追加しました。\n"
+    "初期値はオン。オフでは本体最小化中も表示と更新を継続します。\n"
+    "設定を保存し、常に手前に表示とは独立です。音声処理は変更しません。\n"
     "\n"
     "v1.12.0 adds an independent Playback > R128 Processing Monitor.\n"
     "The monitor requires foobar2000 2.1 or newer; audio processing remains\n"

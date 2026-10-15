@@ -1,47 +1,44 @@
-R128 Real-time Loudness Normalizer v1.12.0
-正式公開前の最終確認
+R128 Real-time Loudness Normalizer v1.13.0
+正式版を再ビルドした後の最終確認
 
-モニター実装の検証結果はMONITOR_DEV_NOTES.mdに記録済みです。
-以下はv1.12.0として再ビルドした配布物に対する確認であり、
-dev.6の実機確認結果を正式版バイナリの確認済み結果へ置き換えません。
-Maximumの「OK」を待ち、1工程ずつ進めます。
+最小化連動の機能確認はv1.13.0-dev.1で実施済み。
+以下は正式版バイナリについての確認であり、開発版の結果と区別する。
+1工程ずつ進めて「OK」を待つ。全既存機能の回帰や30分試験へ理由なく拡大しない。
 
-最終ビルド:
-□ Release / x64でビルド成功
-□ build_validation.txtにEmbedded version: 1.12.0
-□ PE Machineが0x8664、DLLのSHA256が記録されている
-□ foo_r128_normalizer_v1.12.0.fb2k-componentが作成された
-□ SHA256SUMS.txtのファイル名とSHA256が配布物に一致
+2026-10-16 JSTの操作確認済み:
+✓ 同梱CMDによる正式版ビルド・梱包完了
+✓ 上書きインストールとfoobar2000再起動
+✓ Componentsの1.13.0表記
+✓ 最小化連動オフ時、本体最小化中もモニター表示・数値とバーの更新を継続
+上記は各工程の「OK」に基づく。ログ・配布物実バイト・ハッシュの独立照合は未実施。
+以下の□は詳細確認や公開時の照合用であり、操作確認済み項目の再試験を求めるものではない。
 
-最終導入:
-□ 上書きインストールとfoobar2000再起動
-□ Componentsに1.12.0と表示
-□ Playbackから補正モニターを開き、再生中の値が更新される
-□ 比較ボタンの押下・解放で表示と音声が切り替わる
-□ 既存DSP登録と設定を引き継いでいる
+ビルド・梱包:
+□ F:\foobar2000-dev\SDK-2025-03-07を使用し同梱CMDが動作
+□ Release/x64成功、build_validation.txtのEmbedded version: 1.13.0
+□ PE 0x8664、DLL更新日時・SHA256、エラーなし
+□ foo_r128_normalizer_v1.13.0.fb2k-componentとSHA256SUMS.txtを生成
+□ DLL版数完全一致検査でdev.1を誤採用しない
 
-同梱物:
-□ foo_r128_normalizer.dll
-□ README.txt / README_EN.txt
-□ GLOSSARY.txt / GLOSSARY_EN.txt
-□ MONITOR_GUIDE.md
-□ CHANGELOG.txt / QUICK_START.txt
-□ license.txt / THIRD-PARTY-NOTICES.txt
-□ SDKから検出したライセンス通知（該当する場合）
-□ dev版のDLLや旧版の配布文書が混在していない
+導入:
+□ 上書きインストール・再起動、Componentsの1.13.0表記
+□ 既存DSP登録・設定、最小化連動の保存値を引き継ぐ
+□ モニターが開き、再生中の値が更新される
+□ 最小化連動オフ時に本体最小化中も表示と更新を継続
 
-公開:
-□ mainと最終ビルドのソースが一致
-□ タグv1.12.0の対象コミットを確認
-□ ReleaseタイトルがR128 Real-time Loudness Normalizer v1.12.0
-□ 正式Assetsは.fb2k-componentとSHA256SUMS.txt
-□ 近似True Peakと未確認範囲が英日の説明に記載されている
-□ Maximumの公開指示後にPublish release
-□ 公開後にタグ・Assets・ハッシュ・Latestを確認
-□ 公開情報を確認してからSource of Truthを更新
+収録確認:
+□ DLL、日英README、日英用語集、MONITOR_GUIDE.md
+□ CHANGELOG.txt、QUICK_START.txt、license.txt、THIRD-PARTY-NOTICES.txt
+□ SDKから検出したpfc/libPPUIライセンス（該当時）
+□ ZIP破損なし、SHA256SUMS.txtと配布物が一致
 
-未確認範囲:
-・複数画面、混在DPI、旧foobar2000での実機動作
-・独立した測定器との精度比較、v1.11.0との出力完全一致
-・報告された30分を超える連続動作、モニター単独の追加CPU負荷
-・今回確認していない既存機能の全経路
+公開（別工程）:
+□ 明示的な公開指示を受けてから、ソース一式を手動アップロード
+□ 作業ログ、配布物、バックアップ、Git作業データはソースへ含めない
+□ 旧v1.12.0用CMD2点・PowerShell2点を削除
+□ mainとビルド対象ソースが一致
+□ タグv1.13.0、タイトルR128 Real-time Loudness Normalizer v1.13.0
+□ Release本文はRELEASE_NOTES.mdの日英内容と一致
+□ 正式Assetsは.fb2k-componentとSHA256SUMS.txtの2点
+□ 公開後にタグ・正式Assets・ハッシュ・Latestを確認
+□ 確認した情報からv1.13.0専用Source of Truthを作成

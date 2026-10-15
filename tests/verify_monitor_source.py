@@ -26,7 +26,7 @@ restored = restored.replace('    r128_monitor::publisher m_monitor;\n', '')
 start = restored.index('// Keep the legacy popup and preset behavior.')
 end = restored.index('\nnamespace {', start)
 restored = restored[:start] + 'static dsp_factory_t<dsp_r128_normalizer> g_dsp_r128_normalizer_factory;\n' + restored[end:]
-restored = restored.replace('1.12.0\\r\\n', '1.11.0\\r\\n')
+restored = restored.replace('1.13.0\\r\\n', '1.11.0\\r\\n')
 for language in ('JA', 'EN'):
     restored, count = re.subn(
         r',\n    // BEGIN R128 monitor glossary ' + language +
@@ -63,7 +63,7 @@ assert 'SetTimer(wnd, kTimer, 100, nullptr)' in ui
 assert 'dsp_entry::flag_conversion' in current
 assert 'dsp_entry::flag_playback' in current
 assert 'std::mutex' not in (root / 'source/r128_monitor_state.h').read_text()
-script = (root / 'scripts/build_v1120.ps1').read_text(encoding='utf-8-sig')
+script = (root / 'scripts/build_v1130.ps1').read_text(encoding='utf-8-sig')
 for name in ['stdafx.h', 'main.cpp', 'resource.h', 'foo_r128_normalizer.rc',
              'dsp_r128_normalizer.cpp', 'r128_monitor_state.h', 'r128_monitor_ui.h',
              'r128_monitor_meter.h']:

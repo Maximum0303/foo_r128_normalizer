@@ -2,7 +2,7 @@
 
 R128 Real-time Loudness Normalizer (`foo_r128_normalizer`)
 
-Added in **v1.12.0**. Monitor: foobar2000 2.1+ / Windows x64.
+Monitor added in **v1.12.0**. **v1.13.0** adds the saved **Minimize with foobar2000** option. Monitor: foobar2000 2.1+ / Windows x64.
 
 v1.12.0で追加された補正モニターの解説です。
 モニターはfoobar2000 2.1以降／Windows x64に対応します。
@@ -95,7 +95,9 @@ Right-click > How to read the monitor... opens this guide.
 
 Right-click > Always on Top toggles topmost display.
 
-Position, visibility and topmost state are saved. Leaving the monitor open when quitting foobar2000 restores it on next startup. Closing it manually prevents that restoration.
+Right-click > Minimize with foobar2000 defaults to ON. ON follows the foobar2000 main window on minimize/restore. OFF keeps the monitor visible and updating about every 100 ms while playback continues. This setting is independent of Always on Top.
+
+Position, visibility, topmost state and Minimize with foobar2000 are saved. Leaving the monitor open when quitting foobar2000 restores it on next startup. A manually closed monitor is not reopened by main-window minimize/restore.
 
 This is a display window. Opening, closing or reading its help does not change DSP audio settings.
 
@@ -184,6 +186,8 @@ R128の入力値はSonic Refiner処理後の音です。R128の出力値はR128�
 
 右クリック → 常に手前に表示：最前面を切り替えます。
 
-位置・開閉状態・最前面設定を保存します。開いたままfoobar2000を終了すると次回起動時に再表示します。手動で閉じた場合は再表示しません。
+右クリック → foobar2000と一緒に最小化：初期値はオンです。オンなら本体の最小化・復元に連動します。オフなら本体を最小化しても表示と再生中の約100ms更新を継続します。常に手前に表示とは独立です。
+
+位置・開閉状態・最前面設定・最小化連動設定を保存します。開いたままfoobar2000を終了すると次回起動時に再表示します。手動で閉じた場合は本体の最小化・復元でも再表示しません。
 
 この窓は表示用です。開く・閉じる・解説を読む操作でDSPの音声設定を変更しません。

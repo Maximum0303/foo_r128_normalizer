@@ -1,35 +1,34 @@
-R128 Real-time Loudness Normalizer v1.12.0
-GitHub公開準備
+R128 Real-time Loudness Normalizer v1.13.0
+正式公開手順（公開指示後に実施）
 
-この文書は公開時の手順です。ローカル準備だけでは正式公開完了になりません。
-Maximumの「OK」を待ち、1工程ずつ進めます。
-現在の正式版v1.11.0のタグ・Release・Assetsは保持します。
+1. ビルド・最終導入確認
+・v1.13.0へ更新・ビルド・梱包.cmdを実行（既定SDKはFドライブ）
+・build_validation.txtのEmbedded version: 1.13.0、x64、SHA256を確認
+・コンポーネントを上書き導入・再起動し、RELEASE_CHECKLIST.txtの最終確認
 
-1. 最終ビルドと確認
-・v1.12.0へ更新・ビルド・梱包.cmdを実行
-・build_validation.txtのEmbedded version: 1.12.0、x64を確認
-・foo_r128_normalizer_v1.12.0.fb2k-componentを上書き導入して再起動
-・Componentsの版数、Playbackからのモニター表示、再生・比較を短く確認
-・SHA256SUMS.txtの対象ファイル名とハッシュを確認
+2. mainへソースを手動アップロード
+・外側のフォルダーではなく中身をアップロード
+・scripts、source、tests、文書、CMDを含める
+・build.binlog、build_full_log.txt、build_errors.txt、build_validation.txt、
+  v1.13.0_update_log.txt、package_log.txt、package_error.txt、
+  生成DLL、.fb2k-component、SHA256SUMS.txt、バックアップを除外
+・コミット: Update source and documentation for v1.13.0
 
-2. mainへのソース反映
-・v1.12.0のソース、文書、scripts、CMDを反映
-・ビルドログ、配布物、SDK、バックアップ、Git管理情報はソースへ含めない
-・旧v1.11.0のCMD 2件とscripts/build_v1110.ps1、create_v1110_package.ps1を削除
-・dev版のCMD・scriptsを正式版ソースへ混在させない
-・mainと最終ビルドに使ったソースが一致することを確認
+3. 旧版スクリプトを削除
+・v1.12.0へ更新・ビルド・梱包.cmd
+・v1.12.0インストール用ファイルだけ作成.cmd
+・scripts/build_v1120.ps1
+・scripts/create_v1120_package.ps1
+・コミット: Remove obsolete v1.12.0 build scripts
 
-3. Release
-・タグ: v1.12.0（確認したmainのコミットを対象にする）
-・タイトル: R128 Real-time Loudness Normalizer v1.12.0
-・説明: RELEASE_NOTES.mdの英日本文
-・正式Assets:
-  foo_r128_normalizer_v1.12.0.fb2k-component
-  SHA256SUMS.txt
-・実機確認済み範囲と未確認範囲を説明文から省略しない
-・公開後、タイトル・タグ・Assets・Latestを確認
+4. Release作成
+・確認したmainから新規タグv1.13.0
+・タイトル: R128 Real-time Loudness Normalizer v1.13.0
+・本文: RELEASE_NOTES.mdの日英内容
+・添付: foo_r128_normalizer_v1.13.0.fb2k-component、SHA256SUMS.txt
+・明示的な公開指示と添付完了後にPublish release
 
-4. Source of Truth
-・公開後にmain、タグ、Release、正式Assets、ハッシュを確認
-・確認した情報からv1.12.0のSource of Truthを作成
-・公開確認まではv1.11.0のSource of Truthを正式基準として維持
+5. 公開後
+・main、タグ、Release、正式Assets、SHA256、Latestを照合
+・既存のタグとAssetsは差し替えない
+・確認結果をv1.13.0専用Source of Truthへ記録

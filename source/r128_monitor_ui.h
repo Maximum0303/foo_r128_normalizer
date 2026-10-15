@@ -13,10 +13,13 @@ static const GUID guid_topmost =
 {0x9fb00c64,0x5a41,0x405d,{0x94,0x40,0xa3,0xbe,0xbd,0xf0,0x9a,0x91}};
 static const GUID guid_position =
 {0xc39050ca,0x89a1,0x49bb,{0xa9,0xb2,0x6a,0x6d,0xc7,0xbe,0xca,0xf9}};
+static const GUID guid_minimize_with_foobar2000 =
+{0xf3d5a340,0x8a5e,0x45de,{0x9f,0x69,0xa0,0x96,0x1d,0x6d,0x4f,0x1d}};
 
 struct saved_position { int version = 1; int x = 0; int y = 0; unsigned valid = 0; };
 cfg_bool cfg_visible(guid_visible, false);
 cfg_bool cfg_topmost(guid_topmost, false);
+cfg_bool cfg_minimize_with_foobar2000(guid_minimize_with_foobar2000, true);
 cfg_struct_t<saved_position> cfg_position(guid_position, saved_position{});
 HWND window = nullptr;
 bool shutting_down = false;
@@ -237,13 +240,26 @@ void apply_topmost(HWND wnd) {
         0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
 }
 
+void apply_owner(HWND wnd) {
+    if (!IsWindow(wnd)) return;
+    // Match Sonic Refiner v1.1.0: an owned popup follows the main window's
+    // minimize/restore behavior. Detaching its owner keeps it visible and
+    // leaves the existing 100 ms refresh and manual-close lifecycle intact.
+    const HWND owner = cfg_minimize_with_foobar2000.get()
+        ? core_api::get_main_window() : nullptr;
+    SetWindowLongPtrW(wnd, GWLP_HWNDPARENT, reinterpret_cast<LONG_PTR>(owner));
+}
+
 void show_context_menu(HWND wnd, LPARAM coordinates) {
     HMENU menu = CreatePopupMenu();
     if (menu == nullptr) return;
     AppendMenuW(menu, MF_STRING | (cfg_topmost.get() ? MF_CHECKED : MF_UNCHECKED),
         1, ui_text(L"常に手前に表示", L"Always on Top"));
+    AppendMenuW(menu, MF_STRING |
+        (cfg_minimize_with_foobar2000.get() ? MF_CHECKED : MF_UNCHECKED),
+        2, ui_text(L"foobar2000と一緒に最小化", L"Minimize with foobar2000"));
     AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
-    AppendMenuW(menu, MF_STRING, 2,
+    AppendMenuW(menu, MF_STRING, 3,
         ui_text(L"モニターの見方...", L"How to read the monitor..."));
     POINT point = {static_cast<short>(LOWORD(coordinates)),
         static_cast<short>(HIWORD(coordinates))};
@@ -259,6 +275,10 @@ void show_context_menu(HWND wnd, LPARAM coordinates) {
         cfg_topmost = !cfg_topmost.get();
         apply_topmost(wnd);
     } else if (selected == 2) {
+        cfg_minimize_with_foobar2000 = !cfg_minimize_with_foobar2000.get();
+        apply_owner(wnd);
+        apply_topmost(wnd);
+    } else if (selected == 3) {
         DialogBoxParamW(core_api::get_my_instance(), MAKEINTRESOURCEW(IDD_R128_GLOSSARY),
             wnd, glossary_dialog_proc, static_cast<LPARAM>(kMonitorGlossaryIndex));
     }
@@ -346,6 +366,7 @@ INT_PTR CALLBACK dialog_proc(HWND wnd, UINT message, WPARAM wp, LPARAM lp) {
             const UINT restored_dpi = window_dpi(wnd);
             if (restored_dpi != context->initial_dpi)
                 scale_layout(wnd, *context, restored_dpi, nullptr);
+            apply_owner(wnd);
             apply_topmost(wnd);
             context->ready = true;
             refresh(wnd, *context);
