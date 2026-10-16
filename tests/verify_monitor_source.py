@@ -2,6 +2,7 @@
 from pathlib import Path
 import re
 import subprocess
+from verify_loud_preset import baseline_text, restore_loud_changes
 
 root = Path(__file__).resolve().parents[1]
 baseline = subprocess.check_output(
@@ -9,6 +10,7 @@ baseline = subprocess.check_output(
     cwd=root).decode("utf-8-sig").replace("\r\n", "\n")
 current = (root / "source/dsp_r128_normalizer.cpp").read_text(
     encoding="utf-8-sig").replace("\r\n", "\n")
+current = restore_loud_changes(current, baseline_text('source/dsp_r128_normalizer.cpp'))
 
 # Remove only explicit monitor instrumentation, then compare all original code.
 restored = current.replace('#include "r128_monitor_state.h"\n', '')
@@ -63,7 +65,7 @@ assert 'SetTimer(wnd, kTimer, 100, nullptr)' in ui
 assert 'dsp_entry::flag_conversion' in current
 assert 'dsp_entry::flag_playback' in current
 assert 'std::mutex' not in (root / 'source/r128_monitor_state.h').read_text()
-script = (root / 'scripts/build_v1130.ps1').read_text(encoding='utf-8-sig')
+script = (root / 'scripts/build_v1140.ps1').read_text(encoding='utf-8-sig')
 for name in ['stdafx.h', 'main.cpp', 'resource.h', 'foo_r128_normalizer.rc',
              'dsp_r128_normalizer.cpp', 'r128_monitor_state.h', 'r128_monitor_ui.h',
              'r128_monitor_meter.h']:

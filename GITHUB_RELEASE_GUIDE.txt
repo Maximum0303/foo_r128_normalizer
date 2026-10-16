@@ -1,34 +1,27 @@
-R128 Real-time Loudness Normalizer v1.13.0
-正式公開手順（公開指示後に実施）
+R128 Real-time Loudness Normalizer v1.14.0
+正式版向けソース準備済み。GitHubへはまだ公開していない。
 
-1. ビルド・最終導入確認
-・v1.13.0へ更新・ビルド・梱包.cmdを実行（既定SDKはFドライブ）
-・build_validation.txtのEmbedded version: 1.13.0、x64、SHA256を確認
-・コンポーネントを上書き導入・再起動し、RELEASE_CHECKLIST.txtの最終確認
+基準：R128 v1.13.0専用Source of Truth文書版1.0。
+main／タグ基準コミット：d42f85e3c647ea34e11a59437507b882568cb20a。
+dev.2の確認済み処理を維持。正式番号でのWindows最終確認と受領配布物の検査は完了。
+以後も各工程の終了後に「OK」を待ち、Maximumが手動でアップロードする。
 
-2. mainへソースを手動アップロード
-・外側のフォルダーではなく中身をアップロード
-・scripts、source、tests、文書、CMDを含める
-・build.binlog、build_full_log.txt、build_errors.txt、build_validation.txt、
-  v1.13.0_update_log.txt、package_log.txt、package_error.txt、
-  生成DLL、.fb2k-component、SHA256SUMS.txt、バックアップを除外
-・コミット: Update source and documentation for v1.13.0
+1. RELEASE_CHECKLIST.txtで正式版のビルド・導入・最終確認済み範囲を確認する。
+   今回の管理文書更新でコード・ビルドスクリプト・コンポーネント同梱文書は変わらず、再ビルドは不要。
+2. 完成ソースZIPの外側ではなく、中身のソース・文書・scripts・testsをmainへアップロードする。
+   ビルドログ、生成DLL、.fb2k-component、SHA256SUMS.txt、バックアップ、Git作業データは除く。
+3. 旧v1.13.0用の4ファイルを削除し、別コミットにする。
+   v1.13.0へ更新・ビルド・梱包.cmd
+   v1.13.0インストール用ファイルだけ作成.cmd
+   scripts/build_v1130.ps1
+   scripts/create_v1130_package.ps1
+4. mainと完成ソースを照合する。
+5. タグv1.14.0、タイトルR128 Real-time Loudness Normalizer v1.14.0でReleaseを作成する。
+   本文はRELEASE_NOTES.mdと一致させる。
+6. 正式Assetsとして次の2点を添付し、アップロード完了後に公開する。
+   foo_r128_normalizer_v1.14.0.fb2k-component
+   SHA256SUMS.txt
+7. main／タグ／Release本文／Assets digest／Latestを照合し、R128専用Source of Truthを更新する。
 
-3. 旧版スクリプトを削除
-・v1.12.0へ更新・ビルド・梱包.cmd
-・v1.12.0インストール用ファイルだけ作成.cmd
-・scripts/build_v1120.ps1
-・scripts/create_v1120_package.ps1
-・コミット: Remove obsolete v1.12.0 build scripts
-
-4. Release作成
-・確認したmainから新規タグv1.13.0
-・タイトル: R128 Real-time Loudness Normalizer v1.13.0
-・本文: RELEASE_NOTES.mdの日英内容
-・添付: foo_r128_normalizer_v1.13.0.fb2k-component、SHA256SUMS.txt
-・明示的な公開指示と添付完了後にPublish release
-
-5. 公開後
-・main、タグ、Release、正式Assets、SHA256、Latestを照合
-・既存のタグとAssetsは差し替えない
-・確認結果をv1.13.0専用Source of Truthへ記録
+開発版やソースZIPを正式コンポーネントAssetと混同しない。
+一般利用者は.fb2k-componentを使用する。GitHub自動生成Source codeは開発用である。

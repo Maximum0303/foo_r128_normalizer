@@ -284,16 +284,18 @@ BEGIN
     LTEXT           "なし", IDC_DIAG_AUTO_REASON,
                     400, 178, 102, 10, SS_LEFTNOWORDWRAP | SS_NOPREFIX
 
-    GROUPBOX        "プリセット（上段：標準4種／下段：追加処理3種）",
+    GROUPBOX        "プリセット（上段：標準5種／下段：追加処理3種）",
                     IDC_PRESET_GROUP, 8, 201, 504, 59
     PUSHBUTTON      "ナチュラル -18", IDC_PROFILE_STANDARD,
-                    14, 214, 116, 17
+                    14, 214, 94, 17
     PUSHBUTTON      "パワーブースト -14", IDC_PROFILE_STREAMING,
-                    136, 214, 116, 17
+                    114, 214, 94, 17
+    PUSHBUTTON      "ラウド -9", IDC_PROFILE_LOUD,
+                    214, 214, 94, 17
     PUSHBUTTON      "リラックス -23", IDC_PROFILE_BROADCAST,
-                    258, 214, 116, 17
+                    314, 214, 94, 17
     PUSHBUTTON      "ナイトセーフ -22", IDC_PROFILE_NIGHT,
-                    380, 214, 126, 17
+                    414, 214, 92, 17
     PUSHBUTTON      "モダンブースト -9", IDC_PROFILE_MODERN,
                     14, 234, 156, 17
     PUSHBUTTON      "1バンド・アダプティブ -10", IDC_PROFILE_ADAPTIVE,

@@ -1,12 +1,38 @@
 # R128 Real-time Loudness Normalizer
 
-Version **v1.13.0**. Monitor: foobar2000 2.1+ / Windows x64.
+Version **v1.14.0**. Monitor: foobar2000 2.1+ / Windows x64.
 Existing audio processing retains foobar2000 2.0 compatibility.
 モニターはfoobar2000 2.1以降／Windows x64対応です。従来の音声処理は2.0対応を維持します。
 
 [English](#english) | [日本語](#日本語)
 
 ## English
+
+### New in v1.14.0: Loud -9
+
+Loud -9
+Standard normalization for a higher playback loudness. Based on Power Boost,
+with only its target changed to -9 LUFS. It retains maximum boost 8 dB,
+maximum attenuation 18 dB, True Peak limit -1 dBTP, look-ahead 5 ms and release 120 ms.
+Modern and both Adaptive modes stay off. Can follow Sonic Refiner.
+Source audio and protection may prevent reaching the target. Lower the target
+if peak reduction stays strong.
+
+Compatibility: existing user presets named ラウド -9 or Loud -9, including older
+.r128preset backups, retain their names and settings. The UI adds (User) to
+distinguish them from the built-in; this suffix is never stored in the name.
+Selecting the built-in never overwrites a user preset. New names must differ
+from built-in names. Existing same-name presets can still be loaded,
+overwritten and exported.
+
+Eight built-ins: five standard presets and three additional-processing presets.
+The v1.14.0-dev.2 Windows build was checked for preset values, disabled extra
+processing, Apply/reopen/restart persistence, same-name user-preset recall,
+Japanese/English tooltips and glossary, and short playback with monitor updates.
+The 1.14.0 build was then checked for installation/version, retained Loud settings,
+normal tooltips and short playback with monitor updates. The received package passed
+CRC, x64/version, SHA-256 and bundled-document checks.
+See [MONITOR_DEV_NOTES.md](MONITOR_DEV_NOTES.md) for the scope and remaining checks.
 
 ### New in v1.13.0: Minimize with foobar2000
 
@@ -66,15 +92,17 @@ In addition to standard loudness normalization, optional Modern Processing,
 
 ### Download
 
-Download the following file from GitHub Releases:
+Download the component from [Releases](https://github.com/Maximum0303/foo_r128_normalizer/releases).
+Choose the `.fb2k-component` asset for the release you want:
 
-`foo_r128_normalizer_v1.13.0.fb2k-component`
+`foo_r128_normalizer_v1.14.0.fb2k-component`
 
 Visual Studio and the foobar2000 SDK are not required for normal use.
 
 ### Installation
 
-1. Download `foo_r128_normalizer_v1.13.0.fb2k-component`.
+1. Download `foo_r128_normalizer_v1.14.0.fb2k-component` from its GitHub Release.
+   For source builds, see [BUILDING.md](BUILDING.md).
 2. Open the file and follow the foobar2000 installation prompt.
 3. Restart foobar2000.
 4. Add **R128 Real-time Loudness Normalizer** to the active DSP chain in DSP Manager.
@@ -154,6 +182,7 @@ from the active chain or is registered more than once.
 
 - Natural -18
 - Power Boost -14
+- Loud -9
 - Relaxed -23
 - Night Safe -22
 
@@ -164,7 +193,7 @@ from the active chain or is registered more than once.
 - 3-Band Adaptive -10
 
 Additional mastering processing affects tone and dynamics as well as loudness.
-Use one of the four standard presets when transparent loudness matching is the
+Use one of the five standard presets when transparent loudness matching is the
 priority.
 
 #### User presets
@@ -174,7 +203,7 @@ under a custom name. Use **Save As**, **Load**, **Overwrite**, **Rename**, and
 **Delete** to manage them.
 
 Names may contain Japanese or English text and must be 1–64 characters long.
-Up to 100 user presets can be stored. The seven built-in presets remain
+Up to 100 user presets can be stored. The eight built-in presets remain
 read-only. User presets are stored only in the foobar2000 configuration and
 are not transmitted externally.
 
@@ -209,7 +238,7 @@ addresses.
 - Export selected or all user presets and import `.r128preset` files
 - Safety protection against invalid audio values
 
-### Verified display environment
+### Previous-version display checks (not v1.14.0 validation)
 
 - Resolution: 1920 × 1080
 - Windows display scaling: 150%
@@ -251,6 +280,26 @@ concept of `EBU R128 Normalizer by mudlord`. See
 ---
 
 ## 日本語
+
+### v1.14.0：ラウド -9
+
+ラウド -9／Loud -9
+高めの再生ラウドネスを求める音楽鑑賞向けの標準ノーマライズ。
+パワーブーストから目標だけを-9 LUFSへ変更し、最大増幅8 dB、最大減衰18 dB、
+True Peak上限-1 dBTP、先読み5 ms、リミッター解放120 msなどは引き継ぐ。
+モダン処理・1バンド／3バンドAdaptiveはオフ。Sonic Refinerの後段でも使用できる。
+音源や保護動作で目標に達しない場合がある。ピーク抑制が強く続く場合は目標を下げる。
+
+互換性：保存済みの「ラウド -9」「Loud -9」と既存.r128presetは名前・設定を維持。
+画面では「（ユーザー）」を付けて内蔵版と区別する。表示用の接尾辞は保存名に含めない。
+内蔵版の選択は既存ユーザープリセットを上書きしない。新規保存・別の名前への変更では
+内蔵名以外を使用する。既存の同名項目の呼出・上書き・書き出しは引き続き使用できる。
+
+標準5種＋追加処理3種の計8種。v1.14.0-dev.2のWindowsビルドで、設定値、追加処理オフ、
+適用後の再表示・再起動保持、同名ユーザープリセット呼出、日英の吹き出し・用語集、
+短時間再生とモニター更新を確認。正式番号1.14.0でも導入・版数・ラウド設定保持・
+吹き出し・短時間再生・モニター更新を確認し、受領配布物のCRC・x64・版数・SHA-256・同梱文書を検査。
+確認範囲と残項目は[MONITOR_DEV_NOTES.md](MONITOR_DEV_NOTES.md)を参照。
 
 ### v1.13.0の追加機能：foobar2000と一緒に最小化
 
@@ -303,15 +352,17 @@ Sonic Refiner v0.9.0の補正モニターと横幅・フォントに加え、
 
 ### ダウンロード
 
-GitHub Releasesから、次のファイルをダウンロードしてください。
+[Releases](https://github.com/Maximum0303/foo_r128_normalizer/releases)から、
+利用する版の`.fb2k-component`をダウンロードする。
 
-`foo_r128_normalizer_v1.13.0.fb2k-component`
+`foo_r128_normalizer_v1.14.0.fb2k-component`
 
 一般利用では、Visual Studioやfoobar2000 SDKは必要ありません。
 
 ### インストール
 
-1. `foo_r128_normalizer_v1.13.0.fb2k-component`をダウンロードします。
+1. GitHubの該当Releaseから`foo_r128_normalizer_v1.14.0.fb2k-component`をダウンロードします。
+   ソースからのビルドは[BUILDING.md](BUILDING.md)を参照してください。
 2. ファイルを開き、foobar2000の確認画面に従ってインストールします。
 3. foobar2000を再起動します。
 4. DSP Managerで「R128 音量ノーマライザー」を使用中のDSPへ追加します。
@@ -393,6 +444,7 @@ Windows全体の「常に最前面」ではないため、ほかのアプリは�
 
 - ナチュラル -18
 - パワーブースト -14
+- ラウド -9
 - リラックス -23
 - ナイトセーフ -22
 
@@ -403,7 +455,7 @@ Windows全体の「常に最前面」ではないため、ほかのアプリは�
 - 3バンド・アダプティブ -10
 
 追加マスタリング処理は、音量だけでなく音色やダイナミクスにも影響します。
-純粋な音量統一を優先する場合は、標準4プリセットを使用してください。
+純粋な音量統一を優先する場合は、標準5プリセットを使用してください。
 
 #### ユーザープリセット
 
@@ -416,7 +468,7 @@ v1.10.0以降では、現在の基本設定と追加処理設定を任意の名�
 - ［削除］：保存済みのユーザープリセットを削除
 
 日本語・英語を含む1～64文字の名前を使用でき、最大100件まで保存できます。
-既存7プリセットは変更・削除されません。既存プリセットを基に調整し、
+内蔵8プリセットは変更・削除できません。既存プリセットを基に調整し、
 ［名前を付けて保存］で別のユーザープリセットとして保存できます。
 ユーザープリセットはfoobar2000の設定内だけに保存され、外部へ送信されません。
 
@@ -464,7 +516,7 @@ v1.11.0では、バックアップや別PCへの移行用に次の操作を追�
 - ［初期設定］は確認ダイアログを経てから設定欄へ反映され、［適用］を押すと再生中のDSPへ反映
 - ［適用］は設定変更がある時だけ有効になり、適用後は無効へ戻る
 
-### 確認済み表示環境
+### 旧版での表示確認（v1.14.0の実機結果ではない）
 
 - 画面解像度：1920 × 1080
 - Windows表示倍率：150%

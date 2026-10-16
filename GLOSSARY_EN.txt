@@ -1,4 +1,4 @@
-﻿R128 Real-time Loudness Normalizer v1.13.0
+﻿R128 Real-time Loudness Normalizer v1.14.0
 English Glossary
 
 Current processing state
@@ -110,6 +110,14 @@ Save all current Basic and Processing settings under a custom name.
 User presets can be loaded, overwritten, renamed, or deleted.
 The seven built-in presets remain unchanged, and user presets are stored
 separately in the foobar2000 configuration.
+
+Loud -9
+Standard normalization for a higher playback loudness. Based on Power Boost,
+with only its target changed to -9 LUFS. It retains maximum boost 8 dB,
+maximum attenuation 18 dB, True Peak limit -1 dBTP, look-ahead 5 ms and release 120 ms.
+Modern and both Adaptive modes stay off. Can follow Sonic Refiner.
+Source audio and protection may prevent reaching the target. Lower the target
+if peak reduction stays strong.
 
 Monitor: the seven values
 From top to bottom, the monitor shows these values. It refreshes about every 100 ms.

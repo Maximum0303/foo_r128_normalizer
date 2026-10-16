@@ -1,4 +1,24 @@
-﻿R128 Real-time Loudness Normalizer v1.13.0
+﻿R128 Real-time Loudness Normalizer v1.14.0
+
+Loud -9
+Standard normalization for a higher playback loudness. Based on Power Boost,
+with only its target changed to -9 LUFS. It retains maximum boost 8 dB,
+maximum attenuation 18 dB, True Peak limit -1 dBTP, look-ahead 5 ms and release 120 ms.
+Modern and both Adaptive modes stay off. Can follow Sonic Refiner.
+Source audio and protection may prevent reaching the target. Lower the target
+if peak reduction stays strong.
+
+Compatibility: existing user presets named ラウド -9 or Loud -9, including older
+.r128preset backups, retain their names and settings. The UI adds (User) to
+distinguish them from the built-in; this suffix is never stored in the name.
+Selecting the built-in never overwrites a user preset. New names must differ
+from built-in names. Existing same-name presets can still be loaded,
+overwritten and exported.
+
+The v1.14.0-dev.2 build passed targeted Windows checks: preset values, persistence,
+user-preset recall, JP/EN display, and short playback with monitor updates.
+See MONITOR_DEV_NOTES.md. Older results below are not a new endurance test.
+
 
 v1.13.0 adds the monitor minimize setting, matching Sonic Refiner v1.1.0.
 Right-click > Minimize with foobar2000 defaults to ON.
@@ -37,7 +57,7 @@ True Peak is approximate; accuracy against an independent meter is unverified.
 
 INSTALLATION
 
-1. Open foo_r128_normalizer_v1.13.0.fb2k-component.
+1. Open foo_r128_normalizer_v1.14.0.fb2k-component.
 2. Follow the foobar2000 installation prompt.
 3. Restart foobar2000.
 
@@ -100,7 +120,7 @@ name. Select a saved preset and use Load, Overwrite, Rename, or Delete as
 needed. Save As creates a separate user preset from the current settings.
 
 Names can contain Japanese or English text and are limited to 1-64
-characters. Up to 100 user presets can be stored. The seven built-in presets
+characters. Up to 100 user presets can be stored. The eight built-in presets
 remain read-only. User presets are stored only in the foobar2000
 configuration and are not transmitted externally.
 

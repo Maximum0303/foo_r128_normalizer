@@ -210,3 +210,4 @@
 #define IDC_PRESET_CONFLICT_OVERWRITE        1213
 #define IDC_PRESET_CONFLICT_RENAME           1214
 #define IDC_PRESET_CONFLICT_SKIP             1215
+#define IDC_PROFILE_LOUD                   1216

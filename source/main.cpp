@@ -2,13 +2,20 @@
 
 DECLARE_COMPONENT_VERSION(
     "R128 Real-time Loudness Normalizer",
-    "1.13.0",
+    "1.14.0",
     "R128-based real-time loudness normalizer for foobar2000.\n"
     "foobar2000用のR128ベース・リアルタイム音量ノーマライザーです。\n"
     "\n"
     "Author: Maximum\n"
     "Copyright (c) 2026 Maximum\n"
     "License: MIT License\n"
+    "\n"
+    "v1.14.0 adds Loud -9, a standard normalization preset.\n"
+    "Power Boost with only its target changed to -9 LUFS; Modern/Adaptive off.\n"
+    "Eight built-ins are read-only. Existing same-name user presets remain valid.\n"
+    "v1.14.0では標準ノーマライズのラウド -9を追加します。\n"
+    "パワーブーストから目標だけを-9 LUFSへ変更し、追加処理はオフです。\n"
+    "既存7種・保存形式・音声計算を維持し、同名ユーザープリセットも保持します。\n"
     "\n"
     "v1.13.0 adds Minimize with foobar2000 to the monitor menu.\n"
     "ON by default; OFF keeps the monitor visible and updating during playback.\n"

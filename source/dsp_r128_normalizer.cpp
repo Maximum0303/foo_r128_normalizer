@@ -313,6 +313,12 @@ r128_settings streaming_profile() {
     return value;
 }
 
+r128_settings loud_profile() {
+    r128_settings value = streaming_profile();
+    value.target_lufs = -9.0f;
+    return value;
+}
+
 r128_settings broadcast_profile() {
     r128_settings value = default_settings();
     value.target_lufs = -23.0f;
@@ -376,14 +382,16 @@ r128_settings three_band_profile() {
 
 
 enum class recognized_profile {
-    standard,
-    streaming,
-    broadcast,
-    night,
-    modern,
-    adaptive,
-    three_band,
-    custom
+    // Existing values are persisted in R128H1 history; never renumber them.
+    standard = 0,
+    streaming = 1,
+    broadcast = 2,
+    night = 3,
+    modern = 4,
+    adaptive = 5,
+    three_band = 6,
+    custom = 7,
+    loud = 8
 };
 
 bool settings_float_equal(float left, float right) {
@@ -449,6 +457,9 @@ recognized_profile detect_recognized_profile(
     if (settings_equal(value, streaming_profile())) {
         return recognized_profile::streaming;
     }
+    if (settings_equal(value, loud_profile())) {
+        return recognized_profile::loud;
+    }
     if (settings_equal(value, broadcast_profile())) {
         return recognized_profile::broadcast;
     }
@@ -480,6 +491,8 @@ const wchar_t* recognized_profile_name(
         return english
             ? L"Power Boost -14"
             : L"パワーブースト -14";
+    case recognized_profile::loud:
+        return english ? L"Loud -9" : L"ラウド -9";
     case recognized_profile::broadcast:
         return english ? L"Relaxed -23" : L"リラックス -23";
     case recognized_profile::night:
@@ -501,6 +514,8 @@ const wchar_t* recognized_profile_name(
     }
 }
 
+std::wstring user_preset_display_name(const std::wstring& name);
+
 void update_profile_indicator(
     HWND wnd,
     const r128_settings& value,
@@ -508,10 +523,10 @@ void update_profile_indicator(
     const std::wstring* user_preset_name = nullptr,
     bool modified = false
 ) {
-    const wchar_t* name =
+    const std::wstring display_name =
         user_preset_name != nullptr &&
         !user_preset_name->empty()
-            ? user_preset_name->c_str()
+            ? user_preset_display_name(*user_preset_name)
             : recognized_profile_name(
                   detect_recognized_profile(value)
               );
@@ -542,7 +557,7 @@ void update_profile_indicator(
                         L"Current: %s"
                     )
               ),
-        name
+        display_name.c_str()
     );
     SetDlgItemTextW(
         wnd,
@@ -1064,6 +1079,23 @@ bool user_preset_name_is_reserved(
     }
 
     return false;
+}
+
+// Newly reserved names remain valid in existing storage and backup files.
+// Keep user_preset_name_is_reserved's original fourteen-name validation there.
+bool user_preset_name_matches_loud(const std::wstring& name) {
+    return user_preset_names_equal(name, L"ラウド -9") ||
+        user_preset_names_equal(name, L"Loud -9");
+}
+
+bool user_preset_name_is_reserved_for_creation(const std::wstring& name) {
+    return user_preset_name_is_reserved(name) ||
+        user_preset_name_matches_loud(name);
+}
+
+std::wstring user_preset_display_name(const std::wstring& name) {
+    // Apply one suffix to every user name so display labels stay distinct.
+    return name + ui_text(L"（ユーザー）", L" (User)");
 }
 
 bool user_preset_settings_are_valid(
@@ -1603,7 +1635,7 @@ bool valid_recognized_profile_id(int profile_id) {
     return profile_id >=
             static_cast<int>(recognized_profile::standard) &&
         profile_id <=
-            static_cast<int>(recognized_profile::custom);
+            static_cast<int>(recognized_profile::loud);
 }
 
 void update_auto_control_history_entry(
@@ -2449,9 +2481,10 @@ constexpr localized_control_text kPrimaryUiText[] = {
     { IDC_LABEL_DIAG_EVALUATION, L"現在の処理状態：", L"Current processing state:" },
     { IDC_LABEL_DIAG_AUTO_REASON, L"自動制御の理由：", L"Automatic-control reason:" },
 
-    { IDC_PRESET_GROUP, L"プリセット（上段：標準4種／下段：追加処理3種）", L"Presets (standard: top / additional processing: bottom)" },
+    { IDC_PRESET_GROUP, L"プリセット（上段：標準5種／下段：追加処理3種）", L"Presets (top: 5 standard / bottom: 3 additional)" },
     { IDC_PROFILE_STANDARD, L"ナチュラル -18", L"Natural -18" },
     { IDC_PROFILE_STREAMING, L"パワーブースト -14", L"Power Boost -14" },
+    { IDC_PROFILE_LOUD, L"ラウド -9", L"Loud -9" },
     { IDC_PROFILE_BROADCAST, L"リラックス -23", L"Relaxed -23" },
     { IDC_PROFILE_NIGHT, L"ナイトセーフ -22", L"Night Safe -22" },
     { IDC_PROFILE_MODERN, L"モダンブースト -9", L"Modern Boost -9" },
@@ -4887,7 +4920,7 @@ std::wstring build_diagnostic_report() {
     swprintf_s(
         report,
         ui_text(
-        L"R128 音量ノーマライザー 1.13.0\r\n"
+        L"R128 音量ノーマライザー 1.14.0\r\n"
         L"再生状態: %s\r\n"
         L"補正状態: %s\r\n"
         L"補正ゲイン固定: %s\r\n"
@@ -4944,7 +4977,7 @@ std::wstring build_diagnostic_report() {
         L"処理評価: %s\r\n"
         L"サンプルレート: %u Hz\r\n"
         L"推定CPU負荷: %.2f %%\r\n",
-        L"R128 Real-time Loudness Normalizer 1.13.0\r\n"
+        L"R128 Real-time Loudness Normalizer 1.14.0\r\n"
         L"Playback state: %s\r\n"
         L"Normalization state: %s\r\n"
         L"Gain lock: %s\r\n"
@@ -5765,6 +5798,15 @@ constexpr glossary_entry kGlossaryEntries[] = {
         L"再生中の音量をリアルタイムで調整します。"
     },
     {
+        L"ラウド -9",
+        L"高めの再生ラウドネスを求める音楽鑑賞向けの標準ノーマライズです。"
+        L"パワーブーストから目標だけを-9 LUFSへ変更します。\r\n\r\n"
+        L"モダン・1バンド／3バンドAdaptiveはオフ。True Peak上限-1 dBTPと"
+        L"既存の保護機能を維持し、Sonic Refinerの後段でも使用できます。\r\n\r\n"
+        L"音源や保護動作で出力が目標に達しない場合があります。ピーク抑制が"
+        L"強く続く場合は目標を下げて調整してください。"
+    },
+    {
         L"ユーザープリセット",
         L"現在の基本設定と追加処理設定を、任意の名前で保存する"
         L"機能です。\r\n\r\n"
@@ -6052,6 +6094,15 @@ constexpr glossary_entry kGlossaryEntriesEnglish[] = {
         L"in real time."
     },
     {
+        L"Loud -9",
+        L"Standard normalization for a higher playback loudness. Changes only "
+        L"Power Boost's target to -9 LUFS.\r\n\r\n"
+        L"Modern and both Adaptive modes stay off. The -1 dBTP limit and existing "
+        L"protection remain active. Can follow Sonic Refiner.\r\n\r\n"
+        L"Source audio and protection may prevent reaching the target. Lower the "
+        L"target if peak reduction remains strong."
+    },
+    {
         L"User preset",
         L"Saves all current Basic and Processing settings under a custom "
         L"name. User presets can be loaded, overwritten, renamed, or deleted. "
@@ -6329,6 +6380,13 @@ constexpr tooltip_entry kPresetTooltips[] = {
         L"for a more powerful presentation."
     },
     {
+        IDC_PROFILE_LOUD,
+        L"ラウド -9：高めの音量感にそろえます。"
+        L"モダン・Adaptive処理は使用しません。",
+        L"Loud -9: For higher playback loudness. "
+        L"Modern and Adaptive processing stay off."
+    },
+    {
         IDC_PROFILE_BROADCAST,
         L"リラックス -23：全体を控えめにそろえ、"
         L"長時間でも聴きやすくします。",
@@ -6440,6 +6498,15 @@ struct context_help_entry {
 };
 
 constexpr context_help_entry kContextHelpEntries[] = {
+    {
+        IDC_PROFILE_LOUD,
+        L"ラウド -9",
+        L"高めの再生ラウドネス向けの標準ノーマライズです。"
+        L"パワーブーストの目標だけを-9 LUFSへ変更し、モダン・Adaptiveはオフ。"
+        L"True Peak上限は-1 dBTPです。Sonic Refinerの後段でも使用できます。"
+        L"音源や保護動作で目標に達しない場合があります。ピーク抑制が強く"
+        L"続く場合は目標ラウドネスを下げて調整してください。"
+    },
     {
         IDC_TARGET_LUFS,
         L"目標ラウドネス",
@@ -6881,6 +6948,12 @@ const wchar_t* english_control_title(
 
 const wchar_t* english_context_help_description(int control_id) {
     switch (control_id) {
+    case IDC_PROFILE_LOUD:
+        return L"Standard normalization for a higher playback loudness. "
+            L"Only Power Boost's target changes to -9 LUFS. Modern and Adaptive "
+            L"stay off; the True Peak limit is -1 dBTP. Can follow Sonic Refiner. "
+            L"Source audio and protection may prevent reaching the target. "
+            L"Lower the target if peak reduction stays strong.";
     case IDC_TARGET_LUFS:
         return L"The loudness target for processed audio. "
             L"Targets closer to 0 sound louder and can require more peak control.";
@@ -7282,7 +7355,7 @@ bool confirm_restore_defaults(HWND owner) {
 }
 
 constexpr wchar_t kLicenseCreditsText[] =
-    L"R128 リアルタイム音量ノーマライザー 1.13.0\r\n"
+    L"R128 リアルタイム音量ノーマライザー 1.14.0\r\n"
     L"\r\n"
     L"作者：Maximum\r\n"
     L"Copyright (c) 2026 Maximum\r\n"
@@ -7299,7 +7372,7 @@ constexpr wchar_t kLicenseCreditsText[] =
     L"THIRD-PARTY-NOTICES.txtをご覧ください。";
 
 constexpr wchar_t kLicenseCreditsTextEnglish[] =
-    L"R128 Real-time Loudness Normalizer 1.13.0\r\n"
+    L"R128 Real-time Loudness Normalizer 1.14.0\r\n"
     L"\r\n"
     L"Author: Maximum\r\n"
     L"Copyright (c) 2026 Maximum\r\n"
@@ -7735,7 +7808,12 @@ INT_PTR CALLBACK preset_name_dialog_proc(
                 return TRUE;
             }
 
-            if (user_preset_name_is_reserved(trimmed)) {
+            // An unchanged legacy name may be accepted by Rename, but Save As
+            // has no initial name and cannot create a new built-in-name preset.
+            if (user_preset_name_is_reserved_for_creation(trimmed) &&
+                !(user_preset_name_matches_loud(trimmed) &&
+                  context != nullptr && !context->initial_name.empty() &&
+                  user_preset_names_equal(trimmed, context->initial_name))) {
                 MessageBoxW(
                     wnd,
                     ui_text(
@@ -8227,12 +8305,13 @@ void refresh_user_preset_combo(
          index < g_user_presets.size();
          ++index) {
         const auto& entry = g_user_presets[index];
+        const std::wstring display_name = user_preset_display_name(entry.name);
         const LRESULT item = SendMessageW(
             combo,
             CB_ADDSTRING,
             0,
             reinterpret_cast<LPARAM>(
-                entry.name.c_str()
+                display_name.c_str()
             )
         );
 
@@ -9084,7 +9163,7 @@ std::wstring suggested_import_preset_name(
         candidate += numbered_suffix;
 
         if (user_preset_name_is_valid(candidate) &&
-            !user_preset_name_is_reserved(candidate) &&
+            !user_preset_name_is_reserved_for_creation(candidate) &&
             find_user_preset_by_name(candidate) < 0) {
             return candidate;
         }
@@ -9915,6 +9994,10 @@ INT_PTR CALLBACK config_dialog_proc(HWND wnd, UINT message, WPARAM wp, LPARAM lp
                 context,
                 streaming_profile()
             );
+            return TRUE;
+
+        case IDC_PROFILE_LOUD:
+            select_profile_in_dialog(wnd, context, loud_profile());
             return TRUE;
 
         case IDC_PROFILE_BROADCAST:

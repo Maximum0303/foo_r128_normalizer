@@ -1,54 +1,38 @@
-# ソースからのビルド
+# v1.14.0のビルド
 
-v1.13.0のソースです。既存のSDK内プロジェクトが必要です。
-スクリプトはソース8ファイルを更新し、
-バックアップを残したうえでC++17以上・Release x64でビルドします。
-モニターはfoobar2000 2.1以降対応、従来の音声処理は2.0対応を維持します。
-モニター実装の検証記録と未確認範囲はMONITOR_DEV_NOTES.mdに記載しています。
-テスト済みv1.13.0-dev.1からの正式版準備ソースです。版数更新後の
-Windowsでの再ビルド・導入確認は、RELEASE_CHECKLIST.txtに従って行います。
+「ラウド -9」を追加した正式版向け完成ソース。
+v1.14.0-dev.2の確認済み処理を維持し、版数・ビルド用ファイル名・配布文書を正式版向けに整理した。
+正式番号1.14.0でのWindowsビルド・梱包・導入・再起動・版数・設定保持・吹き出し・短時間再生を確認済み。
+受領した配布物のCRC・x64 DLL・版数・SHA-256・同梱文書も検査済み。GitHubへの手動公開は未実施。
+公開済みの基準はR128 v1.13.0 Source of Truth文書版1.0のままとする。
 
-この文書は開発者向けです。
+## 環境
 
-本ZIPは完成ソース一式です。既存SDK内のvcxprojが必要です。
-一般利用者向けの配布物は`.fb2k-component`です。
-
-## 基準環境
-
-- Windows x64
-- Visual Studio 2022またはBuild Tools 2022
-- C++によるデスクトップ開発、MSVC v143 x64/x86、Windows SDK、C++ ATL x86/x64
+- Windows x64、Visual Studio 2022 Build Tools
+- C++によるデスクトップ開発、MSVC v143 x86/x64、Windows SDK、C++ ATL x86/x64
 - foobar2000 SDK 2025-03-07
-- SDKルート：`F:\foobar2000-dev\SDK-2025-03-07`
+- SDK：`F:\foobar2000-dev\SDK-2025-03-07`
+- 既存プロジェクト：`F:\foobar2000-dev\SDK-2025-03-07\foobar2000\foo_r128_normalizer\foo_r128_normalizer.vcxproj`
 
-プロジェクトは`F:\foobar2000-dev\SDK-2025-03-07\foobar2000\foo_r128_normalizer\foo_r128_normalizer.vcxproj`。
-同梱CMDはFドライブを既定値とするスクリプトを実行します。別のSDK位置を使う場合は、
-ビルド・梱包の両方へ`-SdkRoot`を指定してください。
+vcxproj／slnは収録しない。既存SDKプロジェクトへ8ソースをコピーし、C++17・UTF-8を設定して
+Release/x64をRebuildする。バックアップは.before_v1.14.0。MSBuildはvswhereで検出する。
+生成DLLはx64と版数の完全一致を検査し、古いDLLの誤梱包を防ぐ。
 
-## 自動ビルド・梱包
+## 実行
 
-1. このソース一式を展開します。
-2. `v1.13.0へ更新・ビルド・梱包.cmd`を実行します。
-3. Release／x64でビルドされます。
-4. DLLの版数、x64形式、更新時刻、SHA256が検査されます。
-5. 成功すると次の配布ファイルが作成されます。
+1. ZIPをdev版とは別の新しいフォルダーへ展開する。
+2. `v1.14.0へ更新・ビルド・梱包.cmd`をダブルクリックする。
+3. 成功すると`foo_r128_normalizer_v1.14.0.fb2k-component`と`SHA256SUMS.txt`を生成する。
 
-   `foo_r128_normalizer_v1.13.0.fb2k-component`
+別のSDK位置ではビルド・梱包の両方に-SdkRootを指定する。
 
-## 生成物
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build_v1140.ps1 -SdkRoot "F:\foobar2000-dev\SDK-2025-03-07"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\create_v1140_package.ps1 -SdkRoot "F:\foobar2000-dev\SDK-2025-03-07"
+```
 
-必須:
+## 失敗時
 
-- `foo_r128_normalizer_v1.13.0.fb2k-component`
-- `SHA256SUMS.txt`
-
-生成したコンポーネントを上書きインストールして再起動し、
-RELEASE_CHECKLIST.txtの対象項目を1工程ずつ確認します。
-GitHub公開は最終確認後の別工程です。
-
-## ビルド失敗時
-
-- `build_errors.txt`
-- 必要に応じて`build_full_log.txt`
-
-を確認してください。
+ビルド失敗は`build_errors.txt`、必要なら`build_full_log.txt`、梱包失敗は`package_error.txt`を確認する。
+ログ・生成DLL・配布物・バックアップはGitHubソースへ含めない。
+ビルド後の導入・確認・手動公開は1工程ずつ「OK」を待って進める。

@@ -2,6 +2,23 @@
 （R128 リアルタイム音量ノーマライザー）
 CHANGELOG
 
+v1.14.0
+・ラウドのツールチップを日英とも簡潔に統一
+・ラウドの用語集から同名ユーザープリセットに関する補足を日英とも削除
+・ラウド -9／Loud -9を標準ノーマライズへ追加（標準5＋追加処理3＝内蔵8種）
+・パワーブーストから目標だけを-9 LUFSへ変更。モダン／Adaptiveはオフ
+・新プリセットボタン、日英ラベル、ツールチップ、項目ヘルプ、用語集を追加
+・同名ユーザープリセット・旧バックアップの名前と設定を保持し、画面だけで区別
+・新規保存／別名変更では内蔵名を予約。既存同名項目の読込・上書き・書出を維持
+・旧履歴ID 0～7を固定し、新しいLoud -9へID 8を追加
+・既存7種、音声計算、測定、GUID、DSP v7、履歴／プリセット保存形式は維持
+・dev.2で設定値・追加処理オフ・適用／再起動保持・既存ユーザー版呼出・日英表示・短時間再生を確認
+
+Loud -9 is Power Boost with only target=-9 LUFS. Eight read-only built-ins.
+Preserves existing same-name user presets/backups and old history IDs.
+Existing audio math, measurements, old seven presets, GUIDs and formats remain unchanged.
+Targeted Windows checks passed in v1.14.0-dev.2; see MONITOR_DEV_NOTES.md for scope.
+
 v1.13.0
 ・補正モニターの右クリックへ「foobar2000と一緒に最小化」を追加
 ・初期値オン。本体の最小化で隠れ、復元すると開いたままのモニターも戻る

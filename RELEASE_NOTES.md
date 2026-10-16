@@ -1,59 +1,90 @@
-# v1.13.0 — Minimize with foobar2000 / foobar2000と一緒に最小化
+# v1.14.0 — Loud -9 / ラウド -9
 
 ## English
 
-### Changes
-
-- Adds **Minimize with foobar2000** to the Processing Monitor right-click menu, matching Sonic Refiner v1.1.0.
-- The option defaults to **ON**.
-- ON: minimizing foobar2000 hides the still-open monitor; restoring foobar2000 brings it back.
-- OFF: the monitor stays visible and its live values continue updating about every 100 ms during playback.
-- Saves the option across restarts, independently of **Always on Top**.
-- A manually closed monitor is not reopened by main-window minimize/restore.
-- Supports Japanese / English / Automatic (Windows).
-- Updates the built-in monitor help, packaged glossaries and `MONITOR_GUIDE.md`.
+**R128 Real-time Loudness Normalizer** adds **Loud -9** as the fifth standard
+normalization preset. There are now eight built-in presets: five standard and
+three additional-processing presets.
 
 ### Download
 
-`foo_r128_normalizer_v1.13.0.fb2k-component`
+`foo_r128_normalizer_v1.14.0.fb2k-component`
 
 Visual Studio and the foobar2000 SDK are not required for normal use.
 
-### Compatibility and verification scope
+### Loud -9
 
-- UI/window-behavior change only. Existing audio calculations, measurements, seven built-in presets, DSP format v7, existing GUIDs and user-preset formats are retained.
-- The new preference is stored separately from DSP presets; existing monitor position, visibility and topmost settings are preserved.
-- The v1.13.0-dev.1 Windows build was checked for default ON, ON/OFF minimize behavior, live updates with the option OFF, saved ON/OFF settings, manual-close behavior, Always on Top independence, localized menus and the Japanese built-in help.
-- The final v1.13.0 build and packaging completed on Windows. Overwrite installation, restart, the Components version display and live monitor updates while foobar2000 is minimized with the option OFF were confirmed.
-- Monitor: foobar2000 2.1+ / Windows x64. Existing audio processing retains 2.0 compatibility; runtime behavior on older players has not been verified.
-- Multiple monitors/mixed DPI, all window-state combinations, a new 30-minute endurance run and a full legacy-feature regression were not part of this change's targeted checks.
-- True Peak is approximate. Independent-meter accuracy and bit-for-bit output equivalence are unverified.
+- Based on Power Boost, with only its target changed from -14 to **-9 LUFS**.
+- Retains maximum boost 8 dB, maximum attenuation 18 dB, True Peak limit -1 dBTP,
+  look-ahead 5 ms and limiter release 120 ms.
+- Modern Processing, 1-Band Adaptive and 3-Band Adaptive remain off.
+- Can be placed after Sonic Refiner to adjust playback loudness.
+- Source audio and protection may prevent reaching the target. Lower the target
+  if peak reduction remains strong.
+- Includes Japanese/English labels, concise tooltips, context help and glossary.
+
+### Compatibility and checks
+
+- Original seven presets, audio calculations, measurements, GUIDs and DSP format v7 are retained.
+- Existing same-name user presets and backups keep their names and settings.
+  User presets have a display-only `(User)` suffix; saved/exported names are unchanged.
+  New Save As/Rename names must differ from built-in names.
+- History IDs 0–7 and preset storage/backup formats are retained; Loud -9 uses new ID 8.
+- The v1.14.0-dev.2 Windows build passed targeted checks for preset values,
+  extra-processing-off state, Apply/reopen/restart persistence, existing same-name
+  user-preset recall, Japanese/English tooltips and glossary, and short playback
+  with monitor updates.
+- The 1.14.0 build was then checked for installation/version, retained Loud settings,
+  normal tooltips and short playback with monitor updates. The received package passed
+  CRC, x64/version, SHA-256 and bundled-document checks.
+- Local source comparison and extracted-code tests checked the original presets,
+  protected processing/storage code and same-name backup compatibility.
+- No new 30-minute endurance or CPU test was performed. These checks do not
+  certify every theme, DPI, monitor configuration or foobar2000 version.
+
+### Requirements
+
+- Windows x64; foobar2000 2.x for audio processing.
+- foobar2000 2.1 or later for the independent processing monitor.
 
 ## 日本語
 
-### 変更内容
-
-- Sonic Refiner v1.1.0と同じ［foobar2000と一緒に最小化］を補正モニターの右クリックへ追加。
-- 初期値はオン。
-- オン：本体の最小化で開いたままのモニターも消え、本体の復元で戻る。
-- オフ：本体最小化中もモニターを表示し、再生中の値を約100ms更新。
-- 設定を再起動後も保存。［常に手前に表示］とは独立。
-- 手動で閉じたモニターを本体の最小化・復元で勝手に再表示しない。
-- 日本語／English／Automatic (Windows)に対応。
-- 内蔵解説、配布用用語集、`MONITOR_GUIDE.md`を更新。
+**R128 リアルタイム音量ノーマライザー**に、標準ノーマライズの5種目として
+**「ラウド -9」**を追加。標準5種＋追加処理3種の計8内蔵プリセットとなる。
 
 ### ダウンロード
 
-`foo_r128_normalizer_v1.13.0.fb2k-component`
+`foo_r128_normalizer_v1.14.0.fb2k-component`
 
 一般利用ではVisual Studioやfoobar2000 SDKは不要。
 
+### ラウド -9
+
+- パワーブーストから目標だけを−14から**−9 LUFS**へ変更。
+- 最大増幅8 dB、最大減衰18 dB、True Peak上限−1 dBTP、先読み5 ms、
+  リミッター解放120 msを維持。
+- モダン処理・1バンド／3バンドAdaptiveはオフ。
+- Sonic Refinerの後段でも再生音量の調整に使用できる。
+- 音源や保護動作で目標に達しない場合がある。ピーク抑制が強く続く場合は目標を下げる。
+- 日英のラベル、簡潔な吹き出し、項目ヘルプ、用語集を収録。
+
 ### 互換性と確認範囲
 
-- UI／ウィンドウ動作のみの変更。音声計算、測定、既存7プリセット、DSP設定形式v7、既存GUID、ユーザープリセット形式は維持。
-- 新設定はDSPプリセットとは別に保存。既存のモニター位置・開閉・最前面設定を引き継ぐ。
-- v1.13.0-dev.1のWindowsビルドで、初期値オン、最小化連動オン／オフ、オフ時の更新、オン／オフ設定保存、手動終了、最前面設定との独立性、言語メニュー、日本語の内蔵解説を確認。
-- 正式版v1.13.0のWindowsビルド・梱包が完了。上書き導入・再起動、Componentsの版数表示、最小化連動オフで本体を最小化した際のモニター表示・更新を確認。
-- モニターはfoobar2000 2.1以降／Windows x64対応。既存音声処理は2.0対応を維持。旧バージョンでの実機動作は未確認。
-- 複数画面・混在DPI、全ウィンドウ状態の組合せ、新版での30分耐久、全既存機能の回帰は今回の限定した確認の対象外。
-- True Peakは近似。独立した測定器との精度比較、音声出力のビット単位一致は未確認。
+- 既存7プリセット値、音声計算、測定、GUID、DSP設定形式v7を維持。
+- 既存の同名ユーザープリセットとバックアップの名前・設定を維持。
+  ユーザープリセットは画面上だけ「（ユーザー）」を付け、保存・書き出し名は変更しない。
+  新規保存・別名変更では内蔵名以外を使用する。
+- 既存履歴ID 0～7とプリセット保存形式を維持。ラウド -9は新番号8を使用。
+- v1.14.0-dev.2のWindowsビルドで、設定値、追加処理オフ、適用後の再表示・再起動保持、
+  既存の同名ユーザープリセット呼出、日英の吹き出し・用語集、短時間再生とモニター更新を確認。
+- 正式番号1.14.0でも導入・版数・ラウド設定保持・吹き出し・短時間再生・モニター更新を確認。
+  受領配布物のCRC・x64 DLL・版数・SHA-256・同梱文書を検査。
+- ローカルのソース比較と実コード抽出テストで、旧プリセット・保護対象処理・保存処理・
+  同名バックアップの互換性を検査。
+- 今回は30分の耐久試験・CPU測定を再実施していない。
+  全テーマ・DPI・画面構成・foobar2000バージョンの動作を保証する試験ではない。
+
+### 動作環境
+
+- Windows x64。音声処理はfoobar2000 2.xに対応。
+- 独立補正モニターはfoobar2000 2.1以降に対応。
